@@ -1,63 +1,175 @@
-use Test::More tests => 16;
-use strict;
+use Test::More tests => 17;
+use Test::Exception;
 
-my $dtag=(unpack("L",pack("N",1)) != 1)?'0100000000000000':'0000000000000001';
+use strict;
+use warnings;
+
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::RabbitMQ::Perl');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::RabbitMQ::Perl->new() );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
-eval { $mq->queue_declare(1, "nr_test_ack", { passive => 0, durable => 1, exclusive => 0, auto_delete => 0 }); };
-is($@, '', "queue_declare");
-eval { $mq->queue_bind(1, "nr_test_ack", "nr_test_x", "nr_test_ack_route"); };
-is($@, '', "queue_bind");
-eval { $mq->purge(1, "nr_test_ack"); };
-is($@, '', "purge");
-eval { $mq->publish(1, "nr_test_ack_route", "Magic Payload $$", { exchange => "nr_test_x" }); };
-is($@, '', "publish");
-eval { $mq->consume(1, "nr_test_ack", { no_ack => 0, consumer_tag=>'ctag' } ); };
-is($@, '', "consuming");
-my $payload = {};
-eval { $payload = $mq->recv(); };
-$payload->{delivery_tag} =~ s/(.)/sprintf("%02x", ord($1))/esg;
-is_deeply($payload,
-          {
-          'body' => "Magic Payload $$",
-          'routing_key' => 'nr_test_ack_route',
-          'delivery_tag' => $dtag,
-          'exchange' => 'nr_test_x',
-          'consumer_tag' => 'ctag',
-          'props' => {},
-          }, "payload");
-eval { $mq->disconnect(); };
-is($@, '', "disconnect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} 'connect';
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
-eval { $mq->consume(1, "nr_test_ack", { no_ack => 0, consumer_tag=>'ctag' } ); };
-is($@, '', "consuming");
-$payload = {};
-eval { $payload = $mq->recv(); };
-my $ack_tag = $payload->{delivery_tag};
-$payload->{delivery_tag} =~ s/(.)/sprintf("%02x", ord($1))/esg;
-is_deeply($payload,
-          {
-          'body' => "Magic Payload $$",
-          'routing_key' => 'nr_test_ack_route',
-          'delivery_tag' => $dtag,
-          'exchange' => 'nr_test_x',
-          'consumer_tag' => 'ctag',
-          'props' => {},
-          }, "payload");
-eval { $mq->ack(1, $ack_tag); };
-is($@, '', "acking");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	)
+} 'channel.open';
+
+lives_ok {
+	$mq->QueueDeclare(
+		channel => 1,
+		queue => "nr_test_ack",
+		passive => 0,
+		durable => 1,
+		exclusive => 0,
+		auto_delete => 0,
+	);
+} "queue_declare";
+
+lives_ok {
+	$mq->QueueBind(
+		channel => 1,
+		queue => "nr_test_ack",
+		exchange => "nr_test_x",
+		routing_key => "nr_test_ack_route"
+	);
+} "queue_bind";
+
+lives_ok {
+	$mq->QueuePurge(
+		channel => 1,
+		queue => "nr_test_ack",
+	);
+} 'queue.purge';
+
+my $payload = "Magic Payload $$";
+
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "nr_test_ack_route",
+		payload => $payload,
+		exchange => "nr_test_x",
+	);
+} "basic.publish";
+
+my $consumer_tag;
+lives_ok {
+	$consumer_tag = $mq->BasicConsume(
+		channel => 1,
+		queue => "nr_test_ack",
+		no_ack => 0,
+		consumer_tag => 'ctag',
+	)->consumer_tag;
+} "basic.consume";
+
+is_deeply(
+	{ $mq->Receive() },
+	{
+		content_header_frame => Net::AMQP::Frame::Header->new(
+			body_size => length $payload,
+			type_id => '2',
+			weight => 0,
+			payload => '',
+			channel => 1,
+			class_id => 60,
+			header_frame => Net::AMQP::Protocol::Basic::ContentHeader->new(
+			),
+		),
+		delivery_frame => Net::AMQP::Frame::Method->new(
+			type_id => 1,
+			payload => '',
+			channel => 1,
+			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
+				redelivered => 0,
+				delivery_tag => 1,
+				routing_key => 'nr_test_ack_route',
+				consumer_tag => $consumer_tag,
+				exchange => 'nr_test_x',
+			),
+		),
+		payload => $payload,
+	},
+	'received payload',
+);
+
+lives_ok {
+	$mq->Disconnect();
+} "disconnect";
+
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} 'connect';
+
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} 'channel.open';
+
+lives_ok {
+	$consumer_tag = $mq->BasicConsume(
+		channel => 1,
+		queue => "nr_test_ack",
+		no_ack => 0,
+		consumer_tag =>
+		'ctag',
+	)->consumer_tag;
+} 'basic.consume';
+
+is_deeply(
+	{ my %message = $mq->Receive() },
+	{
+		content_header_frame => Net::AMQP::Frame::Header->new(
+			body_size => length $payload,
+			type_id => '2',
+			weight => 0,
+			payload => '',
+			channel => 1,
+			class_id => 60,
+			header_frame => Net::AMQP::Protocol::Basic::ContentHeader->new(
+			),
+		),
+		delivery_frame => Net::AMQP::Frame::Method->new(
+			type_id => 1,
+			payload => '',
+			channel => 1,
+			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
+				redelivered => 1,
+				delivery_tag => 1,
+				routing_key => 'nr_test_ack_route',
+				consumer_tag => $consumer_tag,
+				exchange => 'nr_test_x',
+			),
+		),
+		payload => $payload,
+	},
+	"payload"
+);
+
+lives_ok {
+	$mq->BasicAck(
+		channel => 1,
+		delivery_tag => $message{delivery_frame}->method_frame->delivery_tag,
+	);
+} 'basic.ack';
+
+lives_ok {
+	$mq->Disconnect();
+} "disconnect";
+
 
 1;

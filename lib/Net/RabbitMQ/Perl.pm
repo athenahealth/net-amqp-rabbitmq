@@ -59,7 +59,7 @@ sub Connect {
 		Carp::croak "Could not connect $OS_ERROR";
 	}
 
-	$self->{select} = IO::Select->new( $self->{REMOTE} );
+	$self->{select} = IO::Select->new( $self->{remote} );
 
 	# Backlog of messages.
 	$self->{backlog} = [];
@@ -319,12 +319,12 @@ sub Receive {
 		my $method_frame = $nextframe->method_frame;
 
 		if( ref $method_frame eq 'Net::AMQP::Protocol::Basic::Deliver' ) {
-			return {
+			return (
 				$self->_ReceiverDelivery(
 					channel => $nextframe->channel,
 				),
 				delivery_frame => $nextframe,
-			};
+			);
 		}
 	}
 
@@ -379,7 +379,7 @@ sub ChannelOpen {
 
 	my $channel = $args{channel};
 
-	$self->RabbitRPC(
+	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Channel::Open->new(
@@ -387,8 +387,6 @@ sub ChannelOpen {
 		],
 		response_type => 'Net::AMQP::Protocol::Channel::OpenOk',
 	);
-
-	return;
 }
 
 sub ExchangeDeclare {
@@ -433,7 +431,7 @@ sub QueueDeclare {
 
 	my $channel = $args{channel};
 
-	my $declareok = $self->RabbitRPC(
+	return$self->RabbitRPC(
 		channel => $channel,
 		output => [
 			 Net::AMQP::Protocol::Queue::Declare->new(
@@ -448,8 +446,6 @@ sub QueueDeclare {
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::DeclareOk',
 	);
-
-	return $declareok;
 }
 
 sub QueueBind {
@@ -457,7 +453,7 @@ sub QueueBind {
 
 	my $channel = $args{channel};
 
-	$self->RabbitRPC(
+	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Queue::Bind->new(
@@ -468,8 +464,35 @@ sub QueueBind {
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
 	);
+}
 
-	return;
+sub QueuePurge {
+	my ( $self, %args ) = @_;
+
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Queue::Purge->new(
+				queue => $args{queue},
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Queue::PurgeOk',
+	);
+}
+
+sub BasicAck {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Basic::Ack->new(
+				delivery_tag => $args{delivery_tag},
+				multiple => $args{multiple},
+			),
+		],
+	);
 }
 
 sub BasicGet {
@@ -507,7 +530,7 @@ sub BasicPublish {
 	my $channel = $args{channel};
 	my $payload = $args{payload};
 
-	$self->RabbitRPC(
+	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Basic::Publish->new(
@@ -517,7 +540,6 @@ sub BasicPublish {
 				immediate => $args{immediate},
 			),
 			Net::AMQP::Frame::Header->new(
-				weight => 0,
 				body_size => length( $payload ),
 				channel => $channel,
 				header_frame => Net::AMQP::Protocol::Basic::ContentHeader->new(
@@ -544,12 +566,9 @@ sub BasicPublish {
 			),
 		],
 	);
-
-	return;
-
 }
 
-sub Consume {
+sub BasicConsume {
 	my ( $self, %args ) = @_;
 
 	return $self->RabbitRPC(

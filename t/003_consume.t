@@ -59,7 +59,7 @@ lives_ok {
 
 my $consumertag;
 lives_ok {
-	$consumertag = $mq->Consume(
+	$consumertag = $mq->BasicConsume(
 		channel => 1,
 		queue => $testqueue,
 		consumer_tag => 'ctag',
@@ -69,18 +69,18 @@ lives_ok {
 	)->consumer_tag;
 } "consume";
 
-my $rv = {};
+my %rv;
 lives_ok {
 	local $SIG{ALRM} = sub {
 		die "Timeout";
 	};
 	alarm 5;
-	$rv = $mq->Receive();
+	%rv = $mq->Receive();
 	alarm 0;
 } "recv";
 
 is_deeply(
-	$rv,
+	{ %rv },
 	{
 		payload => 'awesome!',
 		content_header_frame => Net::AMQP::Frame::Header->new(
