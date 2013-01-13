@@ -40,15 +40,6 @@ sub new {
 	return $self;
 }
 
-sub Default {
-	my ( $args, $arg, $default ) = @_;
-	my $ret = $args->{$arg};
-	if( ! defined $ret ) {
-		$ret = $default;
-	}
-	return $ret;
-}
-
 sub Connect {
 	my ( $self, %args ) = @_;
 
@@ -142,10 +133,8 @@ sub _Startup {
 				frame_max => 131072,
 				heartbeat => 0,
 			),
-			Net::AMQP::Frame::Method->new(
-				method_frame => Net::AMQP::Protocol::Connection::Open->new(
-					virtual_host => $virtualhost,
-				),
+			Net::AMQP::Protocol::Connection::Open->new(
+				virtual_host => $virtualhost,
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Connection::OpenOk',
@@ -159,7 +148,7 @@ sub RabbitRPC {
 	my $channel = $args{channel};
 	my @output = @{ $args{output} || [] };
 
-	my @responsetype;
+	my @responsetype ;
 	if( $args{response_type} ) {
 		@responsetype = ref $args{response_type}
 			? @{ $args{response_type} }
@@ -177,27 +166,10 @@ sub RabbitRPC {
 		return;
 	}
 
-	while( 1 ) {
-		my @frames = $self->_Read();
-		foreach my $frame ( @frames ) {
-			next if ! $frame;
-
-			if( $frame->channel != $channel ) {
-				push( @{ $self->{backlog} }, $frame );
-			}
-			elsif( ! $frame->isa('Net::AMQP::Frame::Method') ) {
-				push( @{ $self->{backlog} }, $frame );
-			}
-						elsif( ! List::MoreUtils::any { $frame->method_frame->isa( $_ ) } @responsetype ) {
-				push( @{ $self->{backlog} }, $frame );
-			}
-			else {
-				return $frame->method_frame;
-			}
-		}
-	}
-
-	return;
+	return $self->_LocalReceive(
+		channel => $channel,
+		method_frame => [ @responsetype ],
+	)->method_frame;
 }
 
 sub _Remote {
@@ -249,11 +221,13 @@ sub _CheckFrame {
 		return 0;
 	}
 
-	if( defined $args{method_frame} && $args{method_frame} ne ref $frame->{method_frame} ) {
+	if( defined $args{method_frame} &&
+		! List::MoreUtils::any { ref $frame->{method_frame} eq $_ } @{ $args{method_frame} } ) {
 		return 0;
 	}
 	
-	if( defined $args{header_frame} && $args{header_frame} ne ref $frame->{header_frame} ) {
+	if( defined $args{header_frame} &&
+		! List::MoreUtils::any { ref $frame->{header_frame} eq $_ } @{ $args{header_frame} } ) {
 		return 0
 	}
 
@@ -285,14 +259,15 @@ sub _LocalReceive {
 			# TODO This is ugly as sin.
 			# Messages on channel 0 saying that the connection is closed. That's
 			# a big error, we should probably mark this session as invalid.
-			if( _CheckFrame( $frame, ( method_frame => 'Net::AMQP::Protocol::Connection::Close') ) ) {
+			# TODO could comebind checks, mini optimization
+			if( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Connection::Close'] ) ) ) {
 				Carp::croak sprintf(
 					"Connection closed %s",
 					$frame->method_frame->reply_text
 				);
 			}
 			# TODO only filter for the channel we passed?
-			elsif( _CheckFrame( $frame, ( method_frame => 'Net::AMQP::Protocol::Channel::Close' ) ) ) {
+			elsif( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Channel::Close'] ) ) ) {
 				# TODO Mark the channel as dead?
 				Carp::croak sprintf(
 					"Channel %d closed %s",
@@ -308,35 +283,46 @@ sub _LocalReceive {
 	}
 }
 
+sub _ReceiverDelivery {
+	my ( $self, %args ) = @_;
+
+	my $headerframe = $self->_LocalReceive(
+		channel => $args{channel},
+		header_frame => [ 'Net::AMQP::Protocol::Basic::ContentHeader' ],
+	);
+
+	my $length = $headerframe->{body_size};
+	my $payload = '';
+
+	while( length( $payload ) < $length ) {
+		my $frame = $self->_LocalReceive(
+			channel => $args{channel},
+			type => 'Net::AMQP::Frame::Body',
+		);
+		$payload .= $frame->{payload};
+	}
+
+	return (
+		content_header_frame => $headerframe,
+		payload => $payload,
+	);
+}
+
 sub Receive {
-	my ( $self, $args ) = @_;
+	my ( $self, %args ) = @_;
 
-	my $nextframe = $self->_LocalReceive();
+	my $nextframe = $self->_LocalReceive(
+		channel => $args{channel},
+	);
 
-	if( $nextframe->isa( 'Net::AMQP::Frame::Method' ) ) {
-		# TODO need to filter to channel on next frame stuff.
-		my $method_frame= $nextframe->method_frame;
+	if( ref $nextframe eq 'Net::AMQP::Frame::Method' ) {
+		my $method_frame = $nextframe->method_frame;
 
-		if( $method_frame->isa('Net::AMQP::Protocol::Basic::Deliver') ) {
-			my $headerframe = $self->_LocalReceive(
-				channel => $nextframe->channel,
-				header_frame => 'Net::AMQP::Protocol::Basic::ContentHeader',
-			);
-
-			my $length = $headerframe->{body_size};
-			my $payload = '';
-
-			while( length( $payload ) < $length ) {
-				my $frame = $self->_LocalReceive(
-					channel => $nextframe->channel,
-					type => 'Net::AMQP::Frame::Body',
-				);
-				$payload .= $frame->{payload};
-			}
-
+		if( ref $method_frame eq 'Net::AMQP::Protocol::Basic::Deliver' ) {
 			return {
-				content_header_frame => $headerframe,
-				payload => $payload,
+				$self->_ReceiverDelivery(
+					channel => $nextframe->channel,
+				),
 				delivery_frame => $nextframe,
 			};
 		}
@@ -396,10 +382,7 @@ sub ChannelOpen {
 	$self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Frame::Method->new(
-				channel => $channel,
-				method_frame => Net::AMQP::Protocol::Channel::Open->new(
-				),
+			Net::AMQP::Protocol::Channel::Open->new(
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Channel::OpenOk',
@@ -413,25 +396,36 @@ sub ExchangeDeclare {
 
 	my $channel = $args{channel};
 
-	$self->RabbitRPC(
+	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Frame::Method->new(
-				channel => $channel,
-				method_frame => Net::AMQP::Protocol::Exchange::Declare->new(
-					exchange => $args{exchange},
-					type => $args{exchange_type},
-					passive => $args{passive},
-					durable => $args{durable},
-					auto_delete => $args{auto_delete},
-				),
+			Net::AMQP::Protocol::Exchange::Declare->new(
+				exchange => $args{exchange},
+				type => $args{exchange_type},
+				passive => $args{passive},
+				durable => $args{durable},
+				auto_delete => $args{auto_delete},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Exchange::DeclareOk',
 	);
+}
 
-	return;
+sub ExchangeDelete {
+	my ( $self, %args ) = @_;
 
+	my $channel = $args{channel};
+
+	return $self->RabbitRPC(
+		channel => $channel,
+		output => [
+			Net::AMQP::Protocol::Exchange::Delete->new(
+				exchange => $args{exchange},
+				if_unused => $args{if_unused},
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Exchange::DeleteOk',
+	);
 }
 
 sub QueueDeclare {
@@ -442,17 +436,14 @@ sub QueueDeclare {
 	my $declareok = $self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Frame::Method->new(
-				channel => $channel,
-				method_frame => Net::AMQP::Protocol::Queue::Declare->new(
-					queue => $args{queue},
-					passive => $args{passive},
-					durable => $args{durable},
-					exclusive => $args{exclusive},
-					arguments => {
-						auto_delete => $args{auto_delete},
-					}
-				),
+			 Net::AMQP::Protocol::Queue::Declare->new(
+				queue => $args{queue},
+				passive => $args{passive},
+				durable => $args{durable},
+				exclusive => $args{exclusive},
+				arguments => {
+					auto_delete => $args{auto_delete},
+				}
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::DeclareOk',
@@ -469,13 +460,10 @@ sub QueueBind {
 	$self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Frame::Method->new(
-				channel => $channel,
-				method_frame => Net::AMQP::Protocol::Queue::Bind->new(
-					queue => $args{queue},
-					exchange => $args{exchange},
-					routing_key => $args{routing_key},
-				),
+			Net::AMQP::Protocol::Queue::Bind->new(
+				queue => $args{queue},
+				exchange => $args{exchange},
+				routing_key => $args{routing_key},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
@@ -492,12 +480,9 @@ sub BasicGet {
 	my $get = $self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Frame::Method->new(
-				channel => $channel,
-				method_frame => Net::AMQP::Protocol::Basic::Get->new(
-					queue => $args{queue},
-					no_ack => $args{no_ack},
-				),
+			Net::AMQP::Protocol::Basic::Get->new(
+				queue => $args{queue},
+				no_ack => $args{no_ack},
 			),
 		],
 		response_type => [qw(
@@ -506,15 +491,14 @@ sub BasicGet {
 		)],
 	);
 
-	if( $get->isa('Net::AMQP::Protocol::Basic::GetEmpty') ) {
+	if( ref $get eq 'Net::AMQP::Protocol::Basic::GetEmpty' ) {
 		return;
 	}
 	else {
-		# TODO
-		print ref $get, "\n";
+		return $self->_ReceiverDelivery(
+			channel => $channel,
+		);
 	}
-
-	return $get;
 }
 
 sub BasicPublish {
@@ -578,8 +562,48 @@ sub Consume {
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Basic::ConsumeOk',
-	)->consumer_tag;
+	);
 }
+
+sub TxSelect {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Tx::Select->new(
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Tx::SelectOk',
+	);
+}
+
+sub TxCommit {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Tx::Commit->new(
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Tx::CommitOk',
+	);
+}
+
+sub TxRollback {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Tx::Rollback->new(
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Tx::RollbackOk',
+	);
+}
+
 =head1 NAME
 
 Net::RabbitMQ::Perl - Perl-based RabbitMQ AMQP client

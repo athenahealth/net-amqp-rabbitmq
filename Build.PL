@@ -4,6 +4,7 @@ use Module::Build;
 my $build = Module::Build->new(
 	module_name     => 'Net::RabbitMQ::Perl',
 	license         => 'perl',
+	dist_abstract   => "Pure perl AMQP client for RabbitMQ",
 
 	requires => {
 		'Net::AMQP' => 0.05,

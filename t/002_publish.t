@@ -20,7 +20,7 @@ lives_ok {
 
 lives_ok {
 	$mq->ChannelOpen(
-		channel => 1, 
+		channel => 1,
 	);
 } 'channel.open';
 
@@ -33,7 +33,7 @@ lives_ok {
 		exclusive => 0,
 		auto_delete => 0,
 	);
-} "queue_declare";
+} "queue.declare";
 
 lives_ok {
 	$mq->QueueBind(

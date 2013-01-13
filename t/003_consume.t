@@ -66,7 +66,7 @@ lives_ok {
 		no_local => 0,
 		no_ack => 1,
 		exclusive => 0,
-	);
+	)->consumer_tag;
 } "consume";
 
 my $rv = {};
