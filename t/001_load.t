@@ -4,8 +4,8 @@
 
 use Test::More tests => 2;
 
-use_ok( 'Net::RabbitMQ::Perl' );
+use_ok( 'Net::AMQP::RabbitMQ' );
 
-isa_ok( my $object = Net::RabbitMQ::Perl->new (), 'Net::RabbitMQ::Perl');
+isa_ok( my $object = Net::AMQP::RabbitMQ->new (), 'Net::AMQP::RabbitMQ');
 
 

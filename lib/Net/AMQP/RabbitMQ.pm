@@ -1,4 +1,4 @@
-package Net::RabbitMQ::Perl;
+package Net::AMQP::RabbitMQ;
 
 use strict;
 use warnings;
@@ -625,7 +625,7 @@ sub TxRollback {
 
 =head1 NAME
 
-Net::RabbitMQ::Perl - Perl-based RabbitMQ AMQP client
+Net::AMQP::RabbitMQ - Perl-based RabbitMQ AMQP client
 
 =head1 SYNOPSIS
 
