@@ -1,4 +1,4 @@
-use Test::More tests => 14;
+use Test::More tests => 15;
 use Test::Exception;
 
 use strict;
@@ -24,6 +24,15 @@ lives_ok {
 	);
 } "channel.open";
 
+lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => 'perl_test_get',
+		exchange_type => 'direct',
+	);
+} 'exchange.declare';
+
+
 my $queuename = '';
 lives_ok {
 	$queuename = $mq->QueueDeclare(
@@ -39,8 +48,8 @@ lives_ok {
 	$mq->QueueBind(
 		channel => 1,
 		queue => $queuename,
-		exchange => "nr_test_x",
-		routing_key => "nr_test_q",
+		exchange => "perl_test_get",
+		routing_key => "perl_test_get_key",
 	);
 } "queue.bind";
 
@@ -57,9 +66,9 @@ is_deeply( \%getr, {}, "get should return empty" );
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_q",
+		routing_key => "perl_test_get_key",
 		payload => "Magic Transient Payload",
-		exchange => "nr_test_x",
+		exchange => "perl_test_get",
 	);
 } "basic.publish";
 
@@ -91,9 +100,9 @@ is_deeply(
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_q",
+		routing_key => "perl_test_get_key",
 		payload => "Magic Transient Payload 2",
-		exchange => "nr_test_x",
+		exchange => "perl_test_get",
 		correlation_id => '123',
 		reply_to => 'somequeue',
 		expiration => 60000,

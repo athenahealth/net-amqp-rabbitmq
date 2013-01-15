@@ -1,4 +1,4 @@
-use Test::More tests => 17;
+use Test::More tests => 18;
 use Test::Exception;
 
 use strict;
@@ -25,9 +25,18 @@ lives_ok {
 } 'channel.open';
 
 lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => 'perl_test_noack',
+		exchange_type => 'direct',
+	);
+} 'exchange.declare';
+
+
+lives_ok {
 	$mq->QueueDeclare(
 		channel => 1,
-		queue => "nr_test_ack",
+		queue => "perl_test_ack",
 		passive => 0,
 		durable => 1,
 		exclusive => 0,
@@ -38,16 +47,16 @@ lives_ok {
 lives_ok {
 	$mq->QueueBind(
 		channel => 1,
-		queue => "nr_test_ack",
-		exchange => "nr_test_x",
-		routing_key => "nr_test_ack_route"
+		queue => "perl_test_ack",
+		exchange => "perl_test_noack",
+		routing_key => "perl_test_ack_route"
 	);
 } "queue_bind";
 
 lives_ok {
 	$mq->QueuePurge(
 		channel => 1,
-		queue => "nr_test_ack",
+		queue => "perl_test_ack",
 	);
 } 'queue.purge';
 
@@ -56,9 +65,9 @@ my $payload = "Magic Payload $$";
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_ack_route",
+		routing_key => "perl_test_ack_route",
 		payload => $payload,
-		exchange => "nr_test_x",
+		exchange => "perl_test_noack",
 	);
 } "basic.publish";
 
@@ -66,7 +75,7 @@ my $consumer_tag;
 lives_ok {
 	$consumer_tag = $mq->BasicConsume(
 		channel => 1,
-		queue => "nr_test_ack",
+		queue => "perl_test_ack",
 		no_ack => 0,
 		consumer_tag => 'ctag',
 	)->consumer_tag;
@@ -92,9 +101,9 @@ is_deeply(
 			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
 				redelivered => 0,
 				delivery_tag => 1,
-				routing_key => 'nr_test_ack_route',
+				routing_key => 'perl_test_ack_route',
 				consumer_tag => $consumer_tag,
-				exchange => 'nr_test_x',
+				exchange => 'perl_test_noack',
 			),
 		),
 		payload => $payload,
@@ -123,7 +132,7 @@ lives_ok {
 lives_ok {
 	$consumer_tag = $mq->BasicConsume(
 		channel => 1,
-		queue => "nr_test_ack",
+		queue => "perl_test_ack",
 		no_ack => 0,
 		consumer_tag =>
 		'ctag',
@@ -150,9 +159,9 @@ is_deeply(
 			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
 				redelivered => 1,
 				delivery_tag => 1,
-				routing_key => 'nr_test_ack_route',
+				routing_key => 'perl_test_ack_route',
 				consumer_tag => $consumer_tag,
-				exchange => 'nr_test_x',
+				exchange => 'perl_test_noack',
 			),
 		),
 		payload => $payload,

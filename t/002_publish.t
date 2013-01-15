@@ -1,4 +1,4 @@
-use Test::More tests => 8;
+use Test::More tests => 9;
 use Test::Exception;
 
 use strict;
@@ -25,6 +25,14 @@ lives_ok {
 } 'channel.open';
 
 lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => 'perl_test_publish',
+		exchange_type => 'direct',
+	);
+} 'exchange.declare';
+
+lives_ok {
 	$mq->QueueDeclare(
 		channel => 1,
 		queue => "perl_test_queue",
@@ -39,21 +47,21 @@ lives_ok {
 	$mq->QueueBind(
 		channel => 1,
 		queue => "perl_test_queue",
-		exchange => "nr_test_x",
+		exchange => "perl_test_publish",
 		routing_key => "perl_test_queue",
 	);
 } "queue.bind";
 
 lives_ok {
-	1 while( $mq->BasicGet( channel => 1, queue => "nr_test_hole" ) );
+	1 while( $mq->BasicGet( channel => 1, queue => "perl_test_queue" ) );
 } "drain queue";
 
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_route",
+		routing_key => "perl_test_queue",
 		payload => "Magic Payload",
-		exchange => "nr_test_x",
+		exchange => "perl_test_publish",
 		content_type => 'text/plain',
 		content_encoding => 'none',
 		correlation_id => '123',

@@ -1,4 +1,4 @@
-use Test::More tests => 9;
+use Test::More tests => 10;
 use Test::Exception;
 
 use strict;
@@ -24,6 +24,15 @@ lives_ok {
 	);
 } 'channel.open';
 
+lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => 'perl_test_selfconsume',
+		exchange_type => 'direct',
+	);
+} 'exchange.declare';
+
+
 my $queuename = '';
 lives_ok {
 	$queuename = $mq->QueueDeclare(
@@ -39,17 +48,17 @@ lives_ok {
 	$mq->QueueBind(
 		channel => 1,
 		queue => $queuename,
-		exchange => "nr_test_x",
-		routing_key => "nr_test_q",
+		exchange => "perl_test_selfconsume",
+		routing_key => "test_q",
 	)
 } "queue_bind";
 
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_q",
+		routing_key => "test_q",
 		payload => "Magic Transient Payload",
-		exchange => "nr_test_x",
+		exchange => "perl_test_selfconsume",
 	);
 } 'basic.publish';
 
@@ -85,9 +94,9 @@ is_deeply(
 			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
 				redelivered => 0,
 				delivery_tag => 1,
-				routing_key => 'nr_test_q',
+				routing_key => 'test_q',
 				consumer_tag => $consumer_tag,
-				exchange => 'nr_test_x',
+				exchange => 'perl_test_selfconsume',
 			),
 		),
 		payload => 'Magic Transient Payload',

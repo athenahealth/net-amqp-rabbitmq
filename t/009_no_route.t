@@ -33,7 +33,7 @@ lives_ok {
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_route",
+		routing_key => "perl_test_route",
 		payload => "Magic Payload",
 	);
 } 'basic.publish';
@@ -59,7 +59,7 @@ is_deeply (
 lives_ok {
 	$mq->BasicPublish(
 		channel => 1,
-		routing_key => "nr_test_route",
+		routing_key => "perl_test_route",
 		payload => "Magic Payload",
 		mandatory => 1,
 		expiration => 0,
@@ -77,7 +77,7 @@ is_deeply (
 		channel => 1,
 		method_frame => Net::AMQP::Protocol::Basic::Return->new(
 			reply_code => '312',
-			routing_key => 'nr_test_route',
+			routing_key => 'perl_test_route',
 			reply_text => 'NO_ROUTE',
 			exchange => '',
 		),
