@@ -1,32 +1,54 @@
+use Test::More tests => 7;
+use Test::Exception;
 use strict;
 use warnings;
-no warnings 'uninitialized';
 
-use Test::More tests => 7;
-use Data::Dumper;
 use Time::HiRes;
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
-eval { $mq->connect($host, { user => "guest", password => "guest", heartbeat => 1 }); };
-is($@, '', "connect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+		heartbeat => 1,
+	);
+} 'connect';
 
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} 'channel.open';
+
 sleep .5;
-eval { $mq->heartbeat(); };
-is($@, '', "heartbeat");
+
+lives_ok { $mq->Heartbeat(); } 'heartbeat';
+
 sleep .5;
-eval { $mq->publish(1, "nr_test_q", "Magic Transient Payload", { exchange => "nr_test_x", immediate => 1, mandatory => 1 }); };
-is($@, '', "working publish");
+
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "testytest",
+		payload => "Magic Transient Payload",
+	);
+} "basic.publish";
 
 diag "Sleeping for 4 seconds";
+
 sleep(4);
-eval { $mq->publish(1, "nr_test_q", "Magic Transient Payload", { exchange => "nr_test_x", immediate => 1, mandatory => 1 }); };
-is($@, "publish: Connection reset by peer\n", "failed publish");
+
+throws_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "testytest",
+		payload => "Magic Transient Payload",
+	);
+} qr/Connection reset by peer/, "failed publish";
 
 1;

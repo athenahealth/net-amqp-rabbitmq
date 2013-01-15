@@ -48,6 +48,7 @@ sub Connect {
 	my $username = $args{username} || 'guest';
 	my $port = $args{port} || 5672;
 	my $virtualhost = $args{virtual_host} || '/';
+	my $heartbeat = $args{heartbeat} || 0;
 
 	$self->{remote} = IO::Socket::INET->new(
 		Proto => "tcp",
@@ -68,6 +69,7 @@ sub Connect {
 		username => $username,
 		password => $password,
 		virtual_host => $virtualhost,
+		heartbeat => $heartbeat,
 	);
 
 	return $self;
@@ -100,7 +102,7 @@ sub _Startup {
 		response_type => 'Net::AMQP::Protocol::Connection::Start',
 	);
 
-	$self->RabbitRPC(
+	my $servertuning = $self->RabbitRPC(
 		channel => 0,
 		output => [
 			Net::AMQP::Protocol::Connection::StartOk->new(
@@ -123,6 +125,13 @@ sub _Startup {
 		response_type => 'Net::AMQP::Protocol::Connection::Tune',
 	);
 
+	my $serverheartbeat = $servertuning->heartbeat;
+	my $heartbeat = $args{heartbeat} || 0;
+
+	if( $serverheartbeat != 0 && $serverheartbeat < $heartbeat ) {
+		$heartbeat = $serverheartbeat;
+	}
+
 	# Respond to the tune request with tuneok and then officially kick off a
 	# connection to the virtual host.
 	$self->RabbitRPC(
@@ -131,7 +140,7 @@ sub _Startup {
 			Net::AMQP::Protocol::Connection::TuneOk->new(
 				channel_max => 0,
 				frame_max => 131072,
-				heartbeat => 0,
+				heartbeat => $heartbeat,
 			),
 			Net::AMQP::Protocol::Connection::Open->new(
 				virtual_host => $virtualhost,
@@ -355,6 +364,7 @@ sub _Send {
 	my $channel = $args{channel};
 	my $output = $args{output};
 
+	my $write;
 	if( ref $output ) {
 		if ( $output->isa("Net::AMQP::Protocol::Base") ) {
 			$output = $output->frame_wrap;
@@ -364,12 +374,14 @@ sub _Send {
 			$output->channel( $channel )
 		}
 
-		$self->_Remote->print( $output->to_raw_frame() );
-
+		$write = $output->to_raw_frame();
 	}
 	else {
-		$self->_Remote->print( $output );
+		$write = $output;
 	}
+
+	$self->_Remote->print( $write ) or
+		Carp::croak "Could not write to socket: $OS_ERROR";
 
 	return;
 }
@@ -650,6 +662,14 @@ sub ConfirmSelect {
 	);
 }
 
+sub Heartbeat {
+	my ( $self, %args ) = @_;
+	return $self->_Send(
+		channel => 0,
+		output => Net::AMQP::Frame::Heartbeat->new(
+		),
+	);
+}
 
 
 
