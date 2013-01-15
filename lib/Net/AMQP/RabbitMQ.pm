@@ -621,6 +621,20 @@ sub TxRollback {
 	);
 }
 
+sub ConfirmSelect {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Confirm::Select->new(
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Confirm::SelectOk',
+	);
+}
+
+
 =head1 NAME
 
 Net::AMQP::RabbitMQ - Perl-based RabbitMQ AMQP client

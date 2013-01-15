@@ -1,36 +1,88 @@
+use Test::More tests => 10;
+use Test::Exception;
+
 use strict;
 use warnings;
-no warnings 'uninitialized';
-
-use Test::More tests => 9;
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
-my $result = $mq->connect($host, {user => "guest", password => "guest"});
-ok($result, 'connect');
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+}, "connect";
 
-eval { $mq->channel_open(1); };
-is($@, '', 'channel_open');
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} 'channel.open';
 
-eval { $mq->confirm_select( 1 ); };
-is($@, '', 'confirm_select');
+lives_ok {
+	$mq->ConfirmSelect(
+		channel => 1,
+	);
+} 'confirm_select';
 
-eval { $mq->publish(1, "nr_test_route", "Magic Payload"); };
-is($@, '', 'good pub');
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "nr_test_route",
+		payload => "Magic Payload",
+	);
+} 'basic.publish';
 
-eval { $mq->confirm_delivery( 1 ); };
-is($@, '', 'good pub confirmed');
+# TODO hack Need to build a callback API to replace hacks.
+is_deeply (
+	$mq->Receive(
+		channel => 1,
+	),
+	Net::AMQP::Frame::Method->new(
+		type_id => 1,
+		payload => '',
+		channel => 1,
+		method_frame => Net::AMQP::Protocol::Basic::Ack->new(
+			delivery_tag => 1,
+			multiple => 0,
+		),
+	),
+	'delivery'
+);
 
-eval { $mq->publish(1, "nr_test_route", "Magic Payload", { mandatory => 1, expiration => 0}); };
-is($@, '', 'bad pub');
 
-eval { $mq->confirm_delivery( 1 ); };
-is($@, "delivery returned: NO_ROUTE\n", 'bad pub confirmed');
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "nr_test_route",
+		payload => "Magic Payload",
+		mandatory => 1,
+		expiration => 0,
+	);
+} 'basic.publish';
 
-$mq->disconnect();
+# TODO hack Need to build a callback API to replace hacks.
+is_deeply (
+	$mq->Receive(
+		channel => 1,
+	),
+	Net::AMQP::Frame::Method->new(
+		type_id => 1,
+		payload => '',
+		channel => 1,
+		method_frame => Net::AMQP::Protocol::Basic::Return->new(
+			reply_code => '312',
+			routing_key => 'nr_test_route',
+			reply_text => 'NO_ROUTE',
+			exchange => '',
+		),
+	),
+	'delivery'
+);
+lives_ok { $mq->Disconnect(); } 'disconnect';
 
