@@ -582,6 +582,22 @@ sub BasicConsume {
 	);
 }
 
+sub BasicQos {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Basic::Qos->new(
+				global => $args{global},
+				prefetch_count => $args{prefetch_count},
+				prefect_size => $args{prefetch_size},
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Basic::QosOk',
+	);
+}
+
 sub TxSelect {
 	my ( $self, %args ) = @_;
 
@@ -633,6 +649,8 @@ sub ConfirmSelect {
 		response_type => 'Net::AMQP::Protocol::Confirm::SelectOk',
 	);
 }
+
+
 
 
 =head1 NAME

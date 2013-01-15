@@ -16,7 +16,7 @@ lives_ok {
 		username => "guest",
 		password => "guest",
 	);
-}, "connect";
+} "connect";
 
 lives_ok {
 	$mq->ChannelOpen(
