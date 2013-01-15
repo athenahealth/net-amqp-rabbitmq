@@ -1,25 +1,48 @@
-use Test::More tests => 8;
+use Test::More tests => 6;
+use Test::Exception;
+
 use strict;
+use warnings;
 
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
-my $queuename = undef;
-my $message_count = 0;
-my $consumer_count = 0;
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} 'connect';
+
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+};
+
 my $expect_qn = 'test.net.rabbitmq.perl';
-eval { ($queuename, $message_count, $consumer_count) =
-         $mq->queue_declare(1, $expect_qn, { passive => 0, durable => 1, exclusive => 0, auto_delete => 1 }); };
-is($@, '', "queue_declare");
-is($queuename, $expect_qn, "queue_declare -> $queuename = $expect_qn");
-is($message_count, 0, "got message count back");
-is($consumer_count, 0, "got consumer count back");
+my $declareok;
+lives_ok {
+	$declareok = $mq->QueueDeclare(
+		channel => 1,
+		queue => $expect_qn,
+		durable => 1,
+		exclusive => 0,
+		auto_delete => 1,
+	); 
+} 'queue.declare';
+
+is_deeply(
+	$declareok,
+	Net::AMQP::Protocol::Queue::DeclareOk->new(
+		consumer_count => 0,
+		queue => $expect_qn,
+		message_count => 0,
+	)
+);
+
 1;

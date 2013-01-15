@@ -439,9 +439,7 @@ sub QueueDeclare {
 				passive => $args{passive},
 				durable => $args{durable},
 				exclusive => $args{exclusive},
-				arguments => {
-					auto_delete => $args{auto_delete},
-				}
+				auto_delete => $args{auto_delete},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::DeclareOk',

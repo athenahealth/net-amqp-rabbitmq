@@ -36,11 +36,6 @@ isnt($queuename, '');
 
 my $exchangename = 'perl_transaction_exchange';
 lives_ok {
-	$mq->ExchangeDelete(
-		channel => 1,
-		exchange => $exchangename,
-	);
-
 	$mq->ExchangeDeclare(
 		channel => 1,
 		exchange => $exchangename,
