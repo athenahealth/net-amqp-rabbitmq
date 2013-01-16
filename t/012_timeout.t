@@ -1,13 +1,15 @@
 use Test::More tests => 5;
+use Test::Exception;
+
+use Time::HiRes qw(gettimeofday tv_interval);
+
 use strict;
-use Time::HiRes qw/gettimeofday tv_interval/;
+use warnings;
 
-my $host = '199.15.224.0'; # This OmniTI IP will hang
-$SIG{'PIPE'} = 'IGNORE';
-use_ok('Net::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+use_ok('Net::AMQP::RabbitMQ');
+
+ok( my $mq = Net::AMQP::RabbitMQ->new()) ;
 
 local $SIG{ALRM} = sub { die "failed to timeout\n" };
 
@@ -16,13 +18,17 @@ my $attempt = 0.6;
 eval {
 	# Give a window of 10 seconds for this to run, it should fail in 5.
 	alarm 10;
-	$mq->connect($host, {
-		user => "guest",
+	$mq->Connect(
+		# google.com:81 drops packets, hooray.
+		host => 'www.google.com',
+		port => 81,
+		username => "guest",
 		password => "guest",
-		timeout => $attempt
-	});
+		timeout => $attempt,
+	);
 	alarm 0;
 };
+print "$@\n";
 my $duration = tv_interval($start);
 isnt($@, "failed to timeout\n", "failed to timeout");
 isnt($@, '', "connect");

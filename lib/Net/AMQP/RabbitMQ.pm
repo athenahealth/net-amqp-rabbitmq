@@ -11,10 +11,15 @@ use Cwd;
 use English qw(-no_match_vars);
 use File::ShareDir;
 use IO::Select;
-use IO::Socket::INET;
 use Net::AMQP;
 use Sys::Hostname;
 use List::MoreUtils;
+
+# We're using Socket because IO::Socket::INET doesn't really support a proper
+# connection timeout.
+use Socket;
+use Fcntl;
+use Errno;
 
 =head1 SUBROUTINES
 
@@ -43,24 +48,58 @@ sub new {
 sub Connect {
 	my ( $self, %args ) = @_;
 
-	my $host = $args{host} || 'localhost';
+	my $proto = 'tcp';
+	my $host = inet_aton( $args{host} || 'localhost' )
+		or Carp::croak "Could not resolve $args{host}";
+
 	my $password = $args{password} || 'guest';
 	my $username = $args{username} || 'guest';
+
 	my $port = $args{port} || 5672;
+	if( $port =~ /\D/ ) {
+		$port = getservbyname( $port, $proto );
+	}
+
 	my $virtualhost = $args{virtual_host} || '/';
 	my $heartbeat = $args{heartbeat} || 0;
 
-	$self->{remote} = IO::Socket::INET->new(
-		Proto => "tcp",
-		PeerAddr => $host,
-		PeerPort => $port,
-	);
+	# Set up our socket.
+	socket( $self->{remote}, AF_INET, SOCK_STREAM, getprotobyname( $proto ) )
+		or Carp::croak "Error creating socket $OS_ERROR";
 
-	if( ! $self->{remote} ) {
-		Carp::croak "Could not connect $OS_ERROR";
-	}
+	$self->{remote}->autoflush(1);
 
 	$self->{select} = IO::Select->new( $self->{remote} );
+
+	# Set non-blocking for connect timeout. We'll go back to blocking later.
+	my $flags = fcntl( $self->{remote}, F_GETFL, 0 )
+		or die "Cant get flags for socket: $OS_ERROR";
+
+	$flags = fcntl( $self->{remote}, F_SETFL, $flags | O_NONBLOCK )
+		or die "Cant set flags for socket: $OS_ERROR";
+
+	# Now actually try to connect.
+	if( ! connect( $self->{remote}, sockaddr_in( $port, $host ) ) ) {
+		if( $!{EINPROGRESS} ) {
+			if( ! $self->{select}->can_write( $args{timeout} ) ) {
+				die "Connection timed out.";
+			}
+			# Socket selected for write
+			my $packed = getsockopt( $self->{remote}, SOL_SOCKET, SO_ERROR );
+
+			die "Error checking socket: $OS_ERROR" if( ! defined $packed );
+			die "Socket error: $OS_ERROR" if (0 != ($OS_ERROR = unpack('i', $packed)));
+		}
+		else {
+			die "Error connecting: $OS_ERROR";
+		}
+	}
+
+	# Set to blocking mode again.
+	$flags = fcntl( $self->{remote}, F_GETFL, 0 )
+		or die "Can't get flags for the socket.";
+	$flags = fcntl( $self->{remote}, F_SETFL, $flags & (~O_NONBLOCK) )
+		or die "Cant set flags for socket: $OS_ERROR";
 
 	# Backlog of messages.
 	$self->{backlog} = [];
@@ -193,10 +232,9 @@ sub _Read {
 	my $timeout = $args{timeout};
 
 	if( ! $timeout || $self->{select}->can_read( $timeout ) ) {
-
 		# read length (in Bytes)
-		my $bytesread = $self->_Remote->read( $data, 8 );
-		if( !defined $bytesread ) {
+		my $bytesread = $self->_Remote->sysread( $data, 8 );
+		if( ! $bytesread ) {
 			die "Connection closed";
 		}
 
@@ -206,8 +244,8 @@ sub _Read {
 
 		# read until $length bytes read
 		while ( $length > 0 ) {
-			$bytesread = $self->_Remote->read( $data, $length );
-			if( !defined $bytesread ) {
+			$bytesread = $self->_Remote->sysread( $data, $length );
+			if( !$bytesread ) {
 				die "Connection closed";
 			}
 			$length -= $bytesread;
@@ -380,7 +418,7 @@ sub _Send {
 		$write = $output;
 	}
 
-	$self->_Remote->print( $write ) or
+	$self->_Remote->syswrite( $write ) or
 		Carp::croak "Could not write to socket: $OS_ERROR";
 
 	return;

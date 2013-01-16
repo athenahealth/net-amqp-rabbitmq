@@ -8,6 +8,11 @@ my $build = Module::Build->new(
 
 	requires => {
 		'Net::AMQP' => 0.05,
+		'List::MoreUtils' => 0.25,
+	},
+
+	test_requires => {
+		'Test::Exception' => '',
 	},
 
 
