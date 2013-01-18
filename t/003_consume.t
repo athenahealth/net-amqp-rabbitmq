@@ -34,6 +34,7 @@ lives_ok {
 		auto_delete => 1,
 	)->queue;
 } 'queue.declare';
+print $testqueue, "\n";
 
 lives_ok {
 	$mq->BasicPublish(

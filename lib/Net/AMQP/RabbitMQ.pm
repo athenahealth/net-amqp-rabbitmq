@@ -500,17 +500,46 @@ sub QueueBind {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
+	my %flags = (
+		queue => $args{queue},
+		exchange => $args{exchange},
+		routing_key => $args{routing_key},
+	);
+
+	if( $args{headers} ) {
+		$flags{arguments} = $args{headers};
+	}
 
 	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Protocol::Queue::Bind->new(
-				queue => $args{queue},
-				exchange => $args{exchange},
-				routing_key => $args{routing_key},
-			),
+			Net::AMQP::Protocol::Queue::Bind->new( %flags ),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
+	);
+}
+
+sub QueueUnbind {
+	my ( $self, %args ) = @_;
+
+	my $channel = $args{channel};
+
+	my %flags = (
+		queue => $args{queue},
+		exchange => $args{exchange},
+		routing_key => $args{routing_key},
+	);
+
+	if( $args{headers} ) {
+		$flags{arguments} = $args{headers};
+	}
+
+	return $self->RabbitRPC(
+		channel => $channel,
+		output => [
+			Net::AMQP::Protocol::Queue::Unbind->new( %flags ),
+		],
+		response_type => 'Net::AMQP::Protocol::Queue::UnbindOk',
 	);
 }
 
@@ -540,6 +569,20 @@ sub BasicAck {
 				multiple => $args{multiple},
 			),
 		],
+	);
+}
+
+sub BasicPurge {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Queue::Purge->new(
+				queue => $args{queue},
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Queue::PurgeOk',
 	);
 }
 
@@ -630,6 +673,20 @@ sub BasicConsume {
 		],
 		response_type => 'Net::AMQP::Protocol::Basic::ConsumeOk',
 	);
+}
+
+sub BasicReject {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Basic::Reject->new(
+				delivery_tag => $args{delivery_tag},
+			),
+		],
+	);
+	
 }
 
 sub BasicQos {

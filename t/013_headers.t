@@ -1,40 +1,58 @@
-use Test::More tests => 20;
+use Test::More tests => 13;
+use Test::Exception;
 use strict;
-
-package TestBlessings;
-use overload
-	'""' => sub { uc ${$_[0]} },
-	;
-
-sub new {
-	my ($class, $self) = @_;
-
-	bless \$self, $class;
-}
-
-package main;
+use warnings;
 
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq, "Created object");
+ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} "connect";
 
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} "channel.open";
 
-eval { $mq->queue_declare(1, "nr_test_hole", { passive => 0, durable => 1, exclusive => 0, auto_delete => 0 }); };
-is($@, '', "queue_declare");
+lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => 'perl_test_headers',
+		exchange_type => 'direct',
+	);
+} 'exchange.declare';
 
-eval { $mq->queue_bind(1, "nr_test_hole", "nr_test_x", "nr_test_route"); };
-is($@, '', "queue_bind");
+lives_ok {
+	$mq->QueueDeclare(
+		channel => 1,
+		queue => "nr_test_hole",
+		durable => 1,
+		exclusive => 0,
+		auto_delete => 0,
+	);
+} "queue_declare";
 
-eval { 1 while($mq->get(1, "nr_test_hole")); };
-is($@, '', "drain queue");
+lives_ok {
+	$mq->QueueBind(
+		channel => 1,
+		queue => "nr_test_hole",
+		exchange => "perl_test_headers",
+		routing_key => "nr_test_route",
+	);
+} "queue_bind";
+
+lives_ok {
+	1 while($mq->BasicGet( channel => 1, queue => "nr_test_hole" ));
+} "drain queue";
 
 my $headers = {
 	abc => 123,
@@ -50,70 +68,37 @@ my $headers = {
 	head11 => 11,
 	head12 => 12,
 };
-eval { $mq->publish( 1, "nr_test_route", "Header Test",
-		{ exchange => "nr_test_x" },
-		{ headers => $headers },
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => "nr_test_route",
+		payload => "Header Test",
+		exchange => "perl_test_headers",
+		props => {
+			headers => $headers,
+		},
 	);
-};
+} "publish" ;
 
-is( $@, '', "publish" );
-
-eval { $mq->consume(1, "nr_test_hole", {consumer_tag=>'ctag', no_local=>0,no_ack=>1,exclusive=>0}); };
-is($@, '', "consume");
-
-my $msg;
-eval { $msg = $mq->recv() };
-is( $@, '', 'recv' );
-
-is( $msg->{body}, 'Header Test', "Received body" );
-is( exists $msg->{props}, 1, "Props exist" );
-is( exists $msg->{props}{headers}, 1, "Headers exist" );
-is_deeply( $msg->{props}{headers}, $headers, "Received headers" );
-
-$headers = {
-	blah => TestBlessings->new('foo'),
-};
-eval { $mq->publish( 1, "nr_test_route", "Header Test",
-		{ exchange => "nr_test_x" },
-		{ headers => $headers },
+lives_ok {
+	$mq->BasicConsume(
+		channel => 1,
+		queue => "nr_test_hole",
+		consumer_tag => 'ctag',
+		no_ack => 1,
+		exclusive => 0,
 	);
-};
-is( $@, '', 'publish with blessed header values' );
+} "consume";
 
-eval { $msg = $mq->recv() };
-use Data::Dumper;
-print Data::Dumper::Dumper $msg;
-is( $@, '', 'recv from blessed header values' );
-$headers = {
-	blah => "".TestBlessings->new('foo'),
-};
+my %msg;
+lives_ok { %msg = $mq->Receive() } 'recv';
 
-is_deeply( $msg->{props}{headers}, $headers, "Received blessed headers" );
+is( $msg{payload}, 'Header Test', "Received body" );
 
+is_deeply(
+	$msg{content_header_frame}{header_frame}{headers},
+	$headers,
+	"Received headers"
+);
 
-
-SKIP: {
-	skip "Variable::Magic not available", 3
-		unless eval "use Variable::Magic '0.51' qw(wizard cast dispell); 1";
-
-	my $wizard = wizard(
-		set => sub { },
-	);
-	my $magic = 'foo';
-	cast($magic, $wizard);
-	dispell( $magic, $wizard );
-	my $headers = { blah => $magic, };
-
-	eval { $mq->publish( 1, "nr_test_route", "Header Test",
-			{ exchange => "nr_test_x" },
-			{ headers => $headers },
-		);
-	};
-	is( $@, '', 'publish with magic header values' );
-
-	skip "Publish failed", 2 if $@;
-	eval { $msg = $mq->recv() };
-	is( $@, '', 'recv from magic header values' );
-
-	is_deeply( $msg->{props}{headers}, $headers, "Received magic headers" );
-};
+1;

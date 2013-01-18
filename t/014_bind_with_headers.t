@@ -1,55 +1,147 @@
-use Test::More 'no_plan'; #  20;
+use Test::More tests => 13;
+use Test::Exception;
+
 use strict;
+use warnings;
 
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq, "Created object");
+ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} "connect";
 
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} "channel_open";
 
 my $delete = 1;
 my $key = 'key';
 my $queue;
-eval { $queue = $mq->queue_declare(1, "", { auto_delete => $delete } ); };
-is($@, '', "queue_declare");
+lives_ok {
+	$queue = $mq->QueueDeclare(
+		channel => 1,
+		queue => "",
+		auto_delete => $delete,
+	)->queue;
+} "queue_declare";
 
-diag "Using queue $queue";
-
-my $exchange = "x-$queue";
-eval { $mq->exchange_declare( 1, $exchange, { exchange_type => 'headers', auto_delete => $delete } ); };
-is($@, '', "exchange_declare");
+my $exchange = "perl-x-$queue";
+lives_ok {
+	$mq->ExchangeDeclare(
+		channel => 1,
+		exchange => $exchange,
+		exchange_type => 'headers',
+		auto_delete => $delete,
+	);
+} "exchange_declare";
 
 my $headers = { foo => 'bar' };
-eval { $mq->queue_bind( 1, $queue, $exchange, $key, $headers ) };
-is( $@, '', "queue_bind" );
+lives_ok {
+	$mq->QueueBind(
+		channel => 1,
+		queue => $queue,
+		exchange => $exchange,
+		routing_key => $key,
+		headers => $headers,
+	);
+} "queue_bind";
 
 # This message doesn't have the correct headers so will not be routed to the queue
-eval { $mq->publish( 1, $key, "Unroutable", { exchange => $exchange } ) };
-is( $@, '', "publish unroutable message" );
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => $key,
+		payload => "Unroutable",
+		exchange => $exchange,
+	)
+} "publish unroutable message";
 
-eval { $mq->publish( 1, $key, "Routable", { exchange => $exchange }, { headers => $headers} ) };
-is( $@, '', "publish routable message" );
+lives_ok {
+	$mq->BasicPublish(
+		channel => 1,
+		routing_key => $key,
+		payload => "Routable",
+		exchange => $exchange,
+		props => {
+			headers => $headers,
+		},
+	);
+} "publish routable message";
 
-eval { $mq->consume( 1, $queue ) };
-is( $@, '', "consume" );
+my $ctag;
+lives_ok {
+	$ctag = $mq->BasicConsume(
+		channel => 1,
+		queue => $queue,
+	)->consumer_tag;
+} "consume";
 
-my $msg;
-eval { $msg = $mq->recv() };
-is( $@, '', "recv" );
-is( $msg->{body}, "Routable", "Got expected message" );
+my %msg;
+is_deeply(
+	{ %msg = $mq->Receive() },
+	{
+		content_header_frame => Net::AMQP::Frame::Header->new(
+			body_size => 8,
+			type_id => 2,
+			weight => 0,
+			payload => '',
+			class_id => 60,
+			channel => 1,
+			header_frame => Net::AMQP::Protocol::Basic::ContentHeader->new(
+				headers => {
+					foo => 'bar',
+				},
+			),
+		),
+		payload => 'Routable',
+		delivery_frame => Net::AMQP::Frame::Method->new(
+			type_id => 1,
+			payload => '',
+			channel => 1,
+			method_frame => Net::AMQP::Protocol::Basic::Deliver->new(
+				redelivered => 0,
+				delivery_tag => 1,
+				routing_key => 'key',
+				consumer_tag => $ctag,
+				exchange => $exchange,
+			),
+		),
+	},
+	"Got expected message",
+);
 
-SKIP: {
-	skip "Failed unbind closes channel", 1;
-	eval { $mq->queue_unbind( 1, $queue, $exchange, $key ) };
-	like( $@, qr/NOT_FOUND - no binding /, "Unbinding queue fails without specifying headers" );
-}
+throws_ok {
+	# We get our channel closed when this fails, so lets open a new one.
+	$mq->ChannelOpen(
+		channel => 2
+	);
 
-eval { $mq->queue_unbind( 1, $queue, $exchange, $key, $headers ) };
-is( $@, '', "queue_unbind" );
+	$mq->QueueUnbind(
+		channel => 2,
+		queue => $queue,
+		exchange => $exchange,
+		routing_key => $key,
+	)
+} qr/NOT_FOUND - no binding /, "Unbinding queue fails without specifying headers";
+
+lives_ok {
+	$mq->QueueUnbind(
+		channel => 1,
+		queue => $queue,
+		exchange => $exchange,
+		routing_key => $key,
+		headers => $headers,
+	);
+} "queue_unbind";
+
+1;
