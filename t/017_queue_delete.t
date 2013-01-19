@@ -1,24 +1,46 @@
+use Test::More tests => 6;
+use Test::Exception;
+
 use strict;
 use warnings;
-no warnings 'uninitialized';
-
-use Test::More tests => 6;
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::AMQP::RabbitMQ->new(), 'new' );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
-eval { $mq->queue_declare(1, "nr_test_delete", { passive => 0, durable => 1, exclusive => 0, auto_delete => 0 }); };
-is($@, '', "queue_declare");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} 'connect';
 
-eval { $mq->queue_delete(1, "nr_test_delete", { if_empty => 1, if_unused => 1 }); };
-is($@, '', "queue_delete");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} 'channel.open';
+
+my $queue = '';
+lives_ok {
+	$queue = $mq->QueueDeclare(
+		channel => 1,
+		durable => 1,
+		exclusive => 0,
+		auto_delete => 0,
+	)->queue;
+} 'queue.declare';
+
+lives_ok {
+	$mq->QueueDelete(
+		channel => 1,
+		queue => $queue,
+		if_empty => 1,
+		if_unused => 1,
+	);
+} 'queue.delete';
 
 1;

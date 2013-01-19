@@ -535,6 +535,22 @@ sub QueueBind {
 	);
 }
 
+sub QueueDelete {
+	my ( $self, %args ) = @_;
+
+	return $self->RabbitRPC(
+		channel => $args{channel},
+		output => [
+			Net::AMQP::Protocol::Queue::Delete->new(
+				queue => $args{queue},
+				if_empty => $args{if_empty},
+				if_unused => $args{if_unused},
+			),
+		],
+		response_type => 'Net::AMQP::Protocol::Queue::DeleteOk',
+	);
+}
+
 sub QueueUnbind {
 	my ( $self, %args ) = @_;
 
