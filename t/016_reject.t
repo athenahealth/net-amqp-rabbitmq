@@ -52,7 +52,7 @@ lives_ok {
 } "queue_bind";
 
 lives_ok {
-	$mq->BasicPurge(
+	$mq->QueuePurge(
 		channel => 1,
 		queue => "nr_test_reject",
 	);

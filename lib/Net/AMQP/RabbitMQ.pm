@@ -578,7 +578,6 @@ sub QueueUnbind {
 sub QueuePurge {
 	my ( $self, %args ) = @_;
 
-
 	return $self->RabbitRPC(
 		channel => $args{channel},
 		output => [
@@ -604,17 +603,18 @@ sub BasicAck {
 	);
 }
 
-sub BasicPurge {
+sub BasicCancel {
 	my ( $self, %args ) = @_;
 
 	return $self->RabbitRPC(
 		channel => $args{channel},
 		output => [
-			Net::AMQP::Protocol::Queue::Purge->new(
+			Net::AMQP::Protocol::Basic::Cancel->new(
 				queue => $args{queue},
+				consumer_tag => $args{consumer_tag},
 			),
 		],
-		response_type => 'Net::AMQP::Protocol::Queue::PurgeOk',
+		response_type => 'Net::AMQP::Protocol::Basic::CancelOk',
 	);
 }
 

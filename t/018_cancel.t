@@ -1,25 +1,50 @@
+use Test::More tests => 7;
+use Test::Exception;
+
 use strict;
 use warnings;
-no warnings 'uninitialized';
-use Test::More tests => 6;
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq);
+ok( my $mq = Net::AMQP::RabbitMQ->new(), 'new' );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} 'connect';
 
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} 'channel.open';
 
-my $ctag = eval { $mq->consume(1, "nr_test_hole", {consumer_tag=>'ctag', no_local=>0,no_ack=>1,exclusive=>0}); };
-is($@, '', "consume");
+my $queue;
+lives_ok {
+	$queue = $mq->QueueDeclare(
+		channel => 1,
+	)->queue;
+} 'queue.declare';
 
-eval { $mq->cancel(1, $ctag); };
-is($@, '', "recv");
+my $ctag;
+lives_ok {
+	$ctag = $mq->BasicConsume(
+		channel => 1,
+		queue => $queue,
+		consumer_tag => 'ctag',
+	);
+} 'basic.consume';
+
+lives_ok {
+	$mq->BasicCancel(
+		channel => 1,
+		consumer_tag => $ctag,
+	);
+} 'basic.cancel';
 
 1;
