@@ -30,6 +30,17 @@ connection until Connect is called.
 
 =cut
 
+sub _default {
+	my ( $key, $value, $default ) = @_;
+	if( defined $value ) {
+		return ( $key => $value );
+	}
+	elsif( defined $default ) {
+		return $key => $default;
+	}
+	return;
+}
+
 sub new {
 	my ( $class, %parameters ) = @_;
 
@@ -490,6 +501,9 @@ sub QueueDeclare {
 				durable => $args{durable},
 				exclusive => $args{exclusive},
 				auto_delete => $args{auto_delete},
+				arguments => {
+					_default( 'x-expires', $args{expires} ),
+				},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::DeclareOk',
@@ -504,16 +518,18 @@ sub QueueBind {
 		queue => $args{queue},
 		exchange => $args{exchange},
 		routing_key => $args{routing_key},
+		_default( 'arguments', $args{headers} ),
 	);
-
-	if( $args{headers} ) {
-		$flags{arguments} = $args{headers};
-	}
 
 	return $self->RabbitRPC(
 		channel => $channel,
 		output => [
-			Net::AMQP::Protocol::Queue::Bind->new( %flags ),
+			Net::AMQP::Protocol::Queue::Bind->new(
+				queue => $args{queue},
+				exchange => $args{exchange},
+				routing_key => $args{routing_key},
+				_default( 'arguments', $args{headers} ),
+			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
 	);

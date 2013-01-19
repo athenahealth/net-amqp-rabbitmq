@@ -1,26 +1,45 @@
-use Test::More 'no_plan'; #  20;
+use Test::More tests => 6;
+use Test::Exception;
+
 use strict;
 use warnings;
-no warnings 'uninitialized';
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
 
-use_ok('Net::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ');
 
-my $mq = Net::RabbitMQ->new();
-ok($mq, "Created object");
+ok( my $mq = Net::AMQP::RabbitMQ->new(), "Created object" );
 
-eval { $mq->connect($host, { user => "guest", password => "guest" }); };
-is($@, '', "connect");
+lives_ok {
+	$mq->Connect(
+		host => $host,
+		username => "guest",
+		password => "guest",
+	);
+} "connect";
 
-eval { $mq->channel_open(1); };
-is($@, '', "channel_open");
+lives_ok {
+	$mq->ChannelOpen(
+		channel => 1,
+	);
+} "channel.open";
 
 my $delete = 1;
 my $queue = "x-headers-" . rand();
 
-eval { $queue = $mq->queue_declare(1, $queue, { auto_delete => $delete }, { "x-expires" => 60000 }); };
-is($@, '', "queue_declare");
+lives_ok {
+	$queue = $mq->QueueDeclare(
+		channel => 1,
+		queue => $queue,
+		auto_delete => $delete,
+		expires => 60000,
+	)->queue;
+} "queue_declare";
 
-eval { $queue = $mq->queue_declare(1, $queue, { auto_delete => $delete }); };
-like( $@, qr/PRECONDITION_FAILED/, "Redeclaring queue without header arguments fails." );
+throws_ok {
+	$queue = $mq->QueueDeclare(
+		channel => 1,
+		queue => $queue,
+		auto_delete => $delete,
+	);
+} qr/PRECONDITION_FAILED/, "Redeclaring queue without header arguments fails.";
