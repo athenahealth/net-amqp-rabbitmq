@@ -1,4 +1,4 @@
-Net::AMQP::Perl
+Net::AMQP::RabbitMQ
 ---------------
 
 # Build
