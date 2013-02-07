@@ -44,12 +44,14 @@ sub _default {
 sub new {
 	my ( $class, %parameters ) = @_;
 
-	Net::AMQP::Protocol->load_xml_spec(
-		File::ShareDir::dist_file(
-			'Net-RabbitMQ-Perl',
-			'amqp0-9-1.extended.xml'
-		)
-	);
+	if( ! %Net::AMQP::Protocol::spec ) {
+		Net::AMQP::Protocol->load_xml_spec(
+			File::ShareDir::dist_file(
+				'Net-RabbitMQ-Perl',
+				'amqp0-9-1.extended.xml'
+			)
+		);
+	}
 
 	my $self = bless( {}, ref( $class ) || $class );
 
@@ -158,11 +160,14 @@ sub _Startup {
 			Net::AMQP::Protocol::Connection::StartOk->new(
 				client_properties => {
 					# Can plug all sorts of random stuff in here.
-					platform => 'Perl/NetAMQP/Athena',
+					platform => 'Perl/NetAMQP',
 					product => Cwd::abs_path( $0 ),
-					information => 'http://athenahealth.com/',
-					version => '1.0',
+					information => 'http://github.com/emarcotte/net-amqp-rabbitmq',
+					version => $VERSION,
 					host => hostname(),
+					capabilities => {
+						consumer_cancel_notify => Net::AMQP::Common::true,
+					},
 				},
 				mechanism => 'AMQPLAIN',
 				response => {
@@ -303,6 +308,20 @@ sub _FirstInFrameList {
 	return $frame;
 }
 
+sub _ReceiveCancel {
+	my( $self, %args ) = @_;
+
+	my $cancel_frame = $args{cancel_frame};
+
+	if( my $sub = $self->BasicCancelCallback ) {
+		$sub->(
+			cancel_frame => $cancel_frame,
+		);
+	};
+
+	return;
+}
+
 sub _LocalReceive {
 	my( $self, %args ) = @_;
 
@@ -314,6 +333,14 @@ sub _LocalReceive {
 	while( 1 ) {
 		my @frames = $self->_Read();
 		foreach my $frame ( @frames ) {
+			# TODO March of the ugly.
+			# TODO Reasonable cancel handlers look like ?
+			if( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Basic::Cancel' ] ) ) ) {
+				$self->_ReceiveCancel(
+					cancel_frame => $frame,
+				);
+			}
+
 			# TODO This is ugly as sin.
 			# Messages on channel 0 saying that the connection is closed. That's
 			# a big error, we should probably mark this session as invalid.
@@ -337,11 +364,11 @@ sub _LocalReceive {
 
 		my $frame = _FirstInFrameList( \@frames, %args );
 		push( @{ $self->{backlog} }, @frames );
-		return $frame if $frame;
+				return $frame if $frame;
 	}
 }
 
-sub _ReceiverDelivery {
+sub _ReceiveDelivery {
 	my ( $self, %args ) = @_;
 
 	my $headerframe = $self->_LocalReceive(
@@ -378,7 +405,7 @@ sub Receive {
 
 		if( ref $method_frame eq 'Net::AMQP::Protocol::Basic::Deliver' ) {
 			return (
-				$self->_ReceiverDelivery(
+				$self->_ReceiveDelivery(
 					channel => $nextframe->channel,
 				),
 				delivery_frame => $nextframe,
@@ -603,6 +630,14 @@ sub BasicAck {
 	);
 }
 
+sub BasicCancelCallback {
+	my ( $self, %args ) = @_;
+	if( $args{callback} ) {
+		$self->{basic_cancel_callback} = $args{callback};
+	}
+	return $self->{basic_cancel_callback};
+};
+
 sub BasicCancel {
 	my ( $self, %args ) = @_;
 
@@ -641,7 +676,7 @@ sub BasicGet {
 		return;
 	}
 	else {
-		return $self->_ReceiverDelivery(
+		return $self->_ReceiveDelivery(
 			channel => $channel,
 		);
 	}
