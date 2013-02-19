@@ -1,5 +1,7 @@
-TODO list for Perl module NetRabbitMQPerl
+TODO list for Perl module Net::AMQP::RabbitMQ
 
-- Nothing yet
+- Add more callback APIs on top of basic send/recv APIs.
+- Expose timeout in various APIs more explicitly.
+- Document API, provide simple examples
 
 
