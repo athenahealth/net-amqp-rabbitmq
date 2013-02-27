@@ -1,0 +1,48 @@
+{
+   "abstract" : "Pure perl AMQP client for RabbitMQ",
+   "author" : [
+      "emarcotte@athenahealth.com"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "Module::Build version 0.4003, CPAN::Meta::Converter version 2.112621",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Net-AMQP-RabbitMQ",
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Test::Exception" : "0.24"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "Module::Build" : "0.4"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "File::ShareDir" : "1",
+            "List::MoreUtils" : "0.25",
+            "Net::AMQP" : "0.05"
+         }
+      }
+   },
+   "provides" : {
+      "Net::AMQP::RabbitMQ" : {
+         "file" : "lib/Net/AMQP/RabbitMQ.pm",
+         "version" : "0.01"
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ]
+   },
+   "version" : "0.01"
+}

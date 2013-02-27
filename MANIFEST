@@ -6,7 +6,6 @@ README.md
 Todo
 lib/Net/AMQP/RabbitMQ.pm
 share/amqp0-9-1.extended.xml
-t/.013_headers.t.swp
 t/001_declare_exchange.t
 t/001_load.t
 t/002_publish.t
@@ -26,5 +25,7 @@ t/015_declare_queue_with_headers.t
 t/016_reject.t
 t/017_queue_delete.t
 t/018_cancel.t
-t/019_DESTROY_without_connect.t
 t/019_consumer_cancel.t
+Makefile.PL
+META.yml
+META.json

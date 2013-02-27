@@ -9,12 +9,18 @@ my $build = Module::Build->new(
 	requires => {
 		'Net::AMQP' => 0.05,
 		'List::MoreUtils' => 0.25,
+		'File::ShareDir' => 1.00,
 	},
 
-	test_requires => {
-		'Test::Exception' => '',
+	build_requires => {
+		'Test::Exception' => 0.24,
 	},
 
+	configure_requires => {
+		'Module::Build' => 0.40,
+	},
+
+	create_makefile_pl => 'passthrough',
 
 	share_dir => 'share'
 );

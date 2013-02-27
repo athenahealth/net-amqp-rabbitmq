@@ -47,7 +47,7 @@ sub new {
 	if( ! %Net::AMQP::Protocol::spec ) {
 		Net::AMQP::Protocol->load_xml_spec(
 			File::ShareDir::dist_file(
-				'Net-RabbitMQ-Perl',
+				'Net-AMQP-RabbitMQ',
 				'amqp0-9-1.extended.xml'
 			)
 		);
