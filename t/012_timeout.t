@@ -32,5 +32,5 @@ print "$@\n";
 my $duration = tv_interval($start);
 isnt($@, "failed to timeout\n", "failed to timeout");
 isnt($@, '', "connect");
-# 50ms tolerance should work with most operating systems
-cmp_ok(abs($duration-$attempt), '<', 0.05, 'timeout');
+# give a bit of tolerance for the timeout.
+cmp_ok(abs($duration-$attempt), '<', 1, 'timeout');

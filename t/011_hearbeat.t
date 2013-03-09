@@ -1,5 +1,6 @@
 use Test::More tests => 7;
 use Test::Exception;
+use English qw( -no_match_vars );
 use strict;
 use warnings;
 
@@ -41,12 +42,20 @@ lives_ok {
 
 sleep(4);
 
+my $exception;
+if( $OSNAME =~ /MSWin32/ ) {
+	$exception = qr/An existing connection was forcibly closed/;
+}
+else {
+	$exception = qr/Connection reset by peer/;
+}
+
 throws_ok {
 	$mq->BasicPublish(
 		channel => 1,
 		routing_key => "testytest",
 		payload => "Magic Transient Payload",
 	);
-} qr/Connection reset by peer/, "failed publish";
+} $exception, "failed publish";
 
 1;

@@ -3,23 +3,20 @@ package Net::AMQP::RabbitMQ;
 use strict;
 use warnings;
 
-use vars qw( $VERSION );
-$VERSION = '0.01';
+our $VERSION = '0.01';
 
 use Carp;
 use Cwd;
 use English qw(-no_match_vars);
 use File::ShareDir;
 use IO::Select;
+use IO::Socket::INET;
+use List::MoreUtils;
 use Net::AMQP;
 use Sys::Hostname;
-use List::MoreUtils;
+use Try::Tiny;
+use Time::HiRes;
 
-# We're using Socket because IO::Socket::INET doesn't really support a proper
-# connection timeout.
-use Socket;
-use Fcntl;
-use Errno;
 
 =head1 SUBROUTINES
 
@@ -61,58 +58,38 @@ sub new {
 sub Connect {
 	my ( $self, %args ) = @_;
 
-	my $proto = 'tcp';
-	my $host = inet_aton( $args{host} || 'localhost' )
-		or Carp::croak "Could not resolve $args{host}";
+	try {
+		local $SIG{ALRM} = sub {
+			die 'Timed out';
+		};
+
+		if( $args{timeout} ) {
+			Time::HiRes::alarm( $args{timeout} );
+		}
+
+		$self->{remote} = IO::Socket::INET->new(
+			PeerAddr => $args{host} || 'localhost',
+			PeerPort => $args{port} || 5672,
+			Proto => 'tcp',
+		) or die "Could not connect: $@";
+
+		if( $args{timeout} ) {
+			Time::HiRes::alarm( 0 );
+		}
+		# if( ! $self->{select}->can_write( $args{timeout} ) ) {
+	}
+	catch {
+		die $_;
+	};
+
+	$self->{remote}->autoflush( 1 );
 
 	my $password = $args{password} || 'guest';
 	my $username = $args{username} || 'guest';
-
-	my $port = $args{port} || 5672;
-	if( $port =~ /\D/ ) {
-		$port = getservbyname( $port, $proto );
-	}
-
 	my $virtualhost = $args{virtual_host} || '/';
 	my $heartbeat = $args{heartbeat} || 0;
 
-	# Set up our socket.
-	socket( $self->{remote}, AF_INET, SOCK_STREAM, getprotobyname( $proto ) )
-		or Carp::croak "Error creating socket $OS_ERROR";
-
-	$self->{remote}->autoflush(1);
-
 	$self->{select} = IO::Select->new( $self->{remote} );
-
-	# Set non-blocking for connect timeout. We'll go back to blocking later.
-	my $flags = fcntl( $self->{remote}, F_GETFL, 0 )
-		or die "Cant get flags for socket: $OS_ERROR";
-
-	$flags = fcntl( $self->{remote}, F_SETFL, $flags | O_NONBLOCK )
-		or die "Cant set flags for socket: $OS_ERROR";
-
-	# Now actually try to connect.
-	if( ! connect( $self->{remote}, sockaddr_in( $port, $host ) ) ) {
-		if( $!{EINPROGRESS} ) {
-			if( ! $self->{select}->can_write( $args{timeout} ) ) {
-				die "Connection timed out.";
-			}
-			# Socket selected for write
-			my $packed = getsockopt( $self->{remote}, SOL_SOCKET, SO_ERROR );
-
-			die "Error checking socket: $OS_ERROR" if( ! defined $packed );
-			die "Socket error: $OS_ERROR" if (0 != ($OS_ERROR = unpack('i', $packed)));
-		}
-		else {
-			die "Error connecting: $OS_ERROR";
-		}
-	}
-
-	# Set to blocking mode again.
-	$flags = fcntl( $self->{remote}, F_GETFL, 0 )
-		or die "Can't get flags for the socket.";
-	$flags = fcntl( $self->{remote}, F_SETFL, $flags & (~O_NONBLOCK) )
-		or die "Cant set flags for socket: $OS_ERROR";
 
 	# Backlog of messages.
 	$self->{backlog} = [];
