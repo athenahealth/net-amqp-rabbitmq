@@ -12,7 +12,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -21,19 +21,19 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 sleep .5;
 
-lives_ok { $mq->Heartbeat(); } 'heartbeat';
+lives_ok { $mq->heartbeat(); } 'heartbeat';
 
 sleep .5;
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "testytest",
 		payload => "Magic Transient Payload",
@@ -51,7 +51,7 @@ else {
 }
 
 throws_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "testytest",
 		payload => "Magic Transient Payload",

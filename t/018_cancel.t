@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new(), 'new' );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,21 +19,21 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 my $queue;
 lives_ok {
-	$queue = $mq->QueueDeclare(
+	$queue = $mq->queue_declare(
 		channel => 1,
 	)->queue;
 } 'queue.declare';
 
 my $ctag;
 lives_ok {
-	$ctag = $mq->BasicConsume(
+	$ctag = $mq->basic_consume(
 		channel => 1,
 		queue => $queue,
 		consumer_tag => 'ctag',
@@ -41,7 +41,7 @@ lives_ok {
 } 'basic.consume';
 
 lives_ok {
-	$mq->BasicCancel(
+	$mq->basic_cancel(
 		channel => 1,
 		consumer_tag => $ctag,
 	);

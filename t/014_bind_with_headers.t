@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,7 +19,7 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel_open";
@@ -28,7 +28,7 @@ my $delete = 1;
 my $key = 'key';
 my $queue;
 lives_ok {
-	$queue = $mq->QueueDeclare(
+	$queue = $mq->queue_declare(
 		channel => 1,
 		queue => "",
 		auto_delete => $delete,
@@ -37,7 +37,7 @@ lives_ok {
 
 my $exchange = "perl-x-$queue";
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => $exchange,
 		exchange_type => 'headers',
@@ -47,7 +47,7 @@ lives_ok {
 
 my $headers = { foo => 'bar' };
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => $queue,
 		exchange => $exchange,
@@ -58,7 +58,7 @@ lives_ok {
 
 # This message doesn't have the correct headers so will not be routed to the queue
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => $key,
 		payload => "Unroutable",
@@ -67,7 +67,7 @@ lives_ok {
 } "publish unroutable message";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => $key,
 		payload => "Routable",
@@ -80,15 +80,15 @@ lives_ok {
 
 my $ctag;
 lives_ok {
-	$ctag = $mq->BasicConsume(
+	$ctag = $mq->basic_consume(
 		channel => 1,
 		queue => $queue,
 	)->consumer_tag;
 } "consume";
 
-my %msg;
+my $msg;
 is_deeply(
-	{ %msg = $mq->Receive() },
+	$msg = $mq->receive(),
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => 8,
@@ -122,11 +122,11 @@ is_deeply(
 
 throws_ok {
 	# We get our channel closed when this fails, so lets open a new one.
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 2
 	);
 
-	$mq->QueueUnbind(
+	$mq->queue_unbind(
 		channel => 2,
 		queue => $queue,
 		exchange => $exchange,
@@ -135,7 +135,7 @@ throws_ok {
 } qr/NOT_FOUND - no binding /, "Unbinding queue fails without specifying headers";
 
 lives_ok {
-	$mq->QueueUnbind(
+	$mq->queue_unbind(
 		channel => 1,
 		queue => $queue,
 		exchange => $exchange,

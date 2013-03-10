@@ -11,7 +11,7 @@ use_ok( 'Net::AMQP::RabbitMQ' );
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest"
@@ -19,11 +19,11 @@ lives_ok {
 } 'connecting';
 
 lives_ok {
-	$mq->ChannelOpen( channel => 1 );
+	$mq->channel_open( channel => 1 );
 } 'channel.open';
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => "perl_exchange",
 		exchange_type => "direct",

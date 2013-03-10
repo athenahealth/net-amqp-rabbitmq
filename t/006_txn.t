@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,14 +19,14 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 my $queuename = '';
 lives_ok {
-	$queuename = $mq->QueueDeclare(
+	$queuename = $mq->queue_declare(
 		channel => 1,
 		auto_delete => 1,
 	)->queue;
@@ -36,7 +36,7 @@ isnt($queuename, '');
 
 my $exchangename = 'perl_transaction_exchange';
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => $exchangename,
 		exchange_type => 'direct',
@@ -45,7 +45,7 @@ lives_ok {
 } "exchange.declare";
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => $queuename,
 		exchange => $exchangename,
@@ -54,13 +54,13 @@ lives_ok {
 } "queue.bind";
 
 lives_ok {
-	$mq->TxSelect(
+	$mq->transaction_select(
 		channel => 1,
 	);
 } "tx.select";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "transaction test key",
 		payload => "to be rollbacked",
@@ -69,13 +69,13 @@ lives_ok {
 } "basic.publish";
 
 lives_ok {
-	$mq->TxRollback(
+	$mq->transaction_rollback(
 		channel => 1,
 	);
 } 'tx.rollback';
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "transaction test key",
 		payload => "to be committed",
@@ -84,18 +84,16 @@ lives_ok {
 } 'basic.publish';
 
 lives_ok {
-	$mq->TxCommit(
+	$mq->transaction_commit(
 		channel => 1,
 	);
 } 'tx.commit';
 
 is_deeply(
-	{
-		$mq->BasicGet(
-			channel => 1,
-			queue => $queuename,
-		),
-	},
+	$mq->basic_get(
+		channel => 1,
+		queue => $queuename,
+	),
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => 15,

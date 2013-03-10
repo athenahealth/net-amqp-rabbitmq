@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new(), 'new' );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,14 +19,14 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 my $queue = '';
 lives_ok {
-	$queue = $mq->QueueDeclare(
+	$queue = $mq->queue_declare(
 		channel => 1,
 		durable => 1,
 		exclusive => 0,
@@ -35,7 +35,7 @@ lives_ok {
 } 'queue.declare';
 
 lives_ok {
-	$mq->QueueDelete(
+	$mq->queue_delete(
 		channel => 1,
 		queue => $queue,
 		if_empty => 1,

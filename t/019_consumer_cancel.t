@@ -12,7 +12,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -20,14 +20,14 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 my $queuename = "nr_test_consumer_cancel";
 lives_ok {
-	$mq->QueueDeclare(
+	$mq->queue_declare(
 		channel => 1,
 		queue => $queuename,
 	);
@@ -35,7 +35,7 @@ lives_ok {
 
 my $ctag;
 lives_ok {
-	$ctag = $mq->BasicConsume(
+	$ctag = $mq->basic_consume(
 		channel => 1,
 		queue => $queuename,
 	)->consumer_tag
@@ -43,7 +43,7 @@ lives_ok {
 
 my $cancel;
 lives_ok {
-	$mq->BasicCancelCallback(
+	$mq->basic_cancel_callback(
 		callback => sub {
 			my ( %args ) = @_;
 			$cancel = \%args;
@@ -54,12 +54,12 @@ lives_ok {
 
 lives_ok {
 	my $mq2 = Net::AMQP::RabbitMQ->new();
-	$mq2->Connect( host => $host, username => 'guest', password => 'guest' );
+	$mq2->connect( host => $host, username => 'guest', password => 'guest' );
 
-	$mq2->ChannelOpen(
+	$mq2->channel_open(
 		channel => 2,
 	);
-	$mq2->QueueDelete(
+	$mq2->queue_delete(
 		channel => 2,
 		queue => $queuename,
 		if_unused => 0,
@@ -68,10 +68,11 @@ lives_ok {
 
 # Pretend to wait for a message.
 throws_ok {
-	$mq->Receive(
+	$mq->receive(
 		method_frame => [ 'Net::AMQP::Protocol::Basic::Cancel' ],
 	);
 } qr/Got our cancel/, 'canceled';
+
 is_deeply(
 	$cancel,
 	{
@@ -87,6 +88,5 @@ is_deeply(
 	},
 	"ctag"
 );
-
 
 1;

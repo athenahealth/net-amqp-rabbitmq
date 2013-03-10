@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,13 +19,13 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel.open";
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_get',
 		exchange_type => 'direct',
@@ -35,7 +35,7 @@ lives_ok {
 
 my $queuename = '';
 lives_ok {
-	$queuename = $mq->QueueDeclare(
+	$queuename = $mq->queue_declare(
 		channel => 1,
 		queue => '',
 		durable => 0,
@@ -45,7 +45,7 @@ lives_ok {
 } "queue.declare";
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => $queuename,
 		exchange => "perl_test_get",
@@ -53,18 +53,18 @@ lives_ok {
 	);
 } "queue.bind";
 
-my %getr;
+my $getr;
 lives_ok {
-	%getr = $mq->BasicGet(
+	$getr = $mq->basic_get(
 		channel => 1,
 		queue => $queuename,
 	);
 } "get";
 
-is_deeply( \%getr, {}, "get should return empty" );
+is_deeply( $getr, undef, "get should return empty" );
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_get_key",
 		payload => "Magic Transient Payload",
@@ -73,14 +73,14 @@ lives_ok {
 } "basic.publish";
 
 lives_ok {
-	%getr = $mq->BasicGet(
+	$getr = $mq->basic_get(
 		channel => 1,
 		queue => $queuename,
 	);
 } "basic.get";
 
 is_deeply(
-	{ %getr },
+	$getr,
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => 23,
@@ -98,7 +98,7 @@ is_deeply(
 );
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_get_key",
 		payload => "Magic Transient Payload 2",
@@ -117,14 +117,14 @@ lives_ok {
 } 'basic.publish';
 
 lives_ok {
-	%getr = $mq->BasicGet(
+	$getr = $mq->basic_get(
 		channel => 1,
 		queue => $queuename,
 	);
 } "get";
 
 is_deeply(
-	{ %getr },
+	$getr,
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => 25,

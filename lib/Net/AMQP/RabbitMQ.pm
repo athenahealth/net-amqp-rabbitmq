@@ -17,27 +17,6 @@ use Sys::Hostname;
 use Try::Tiny;
 use Time::HiRes;
 
-
-=head1 SUBROUTINES
-
-=head2 new
-
-Loads the AMQP protocol definition, primarily. Will not be an active
-connection until Connect is called.
-
-=cut
-
-sub _default {
-	my ( $key, $value, $default ) = @_;
-	if( defined $value ) {
-		return ( $key => $value );
-	}
-	elsif( defined $default ) {
-		return $key => $default;
-	}
-	return;
-}
-
 sub new {
 	my ( $class, %parameters ) = @_;
 
@@ -50,17 +29,17 @@ sub new {
 		);
 	}
 
-	my $self = bless( {}, ref( $class ) || $class );
+	my $self = bless {}, ref $class || $class;
 
 	return $self;
 }
 
-sub Connect {
+sub connect {
 	my ( $self, %args ) = @_;
 
 	try {
 		local $SIG{ALRM} = sub {
-			die 'Timed out';
+			Carp::croak 'Timed out';
 		};
 
 		if( $args{timeout} ) {
@@ -71,7 +50,7 @@ sub Connect {
 			PeerAddr => $args{host} || 'localhost',
 			PeerPort => $args{port} || 5672,
 			Proto => 'tcp',
-		) or die "Could not connect: $@";
+		) or Carp::croak "Could not connect: $EVAL_ERROR";
 
 		if( $args{timeout} ) {
 			Time::HiRes::alarm( 0 );
@@ -79,7 +58,7 @@ sub Connect {
 		# if( ! $self->{select}->can_write( $args{timeout} ) ) {
 	}
 	catch {
-		die $_;
+		Carp::croak $_;
 	};
 
 	$self->{remote}->autoflush( 1 );
@@ -94,7 +73,7 @@ sub Connect {
 	# Backlog of messages.
 	$self->{backlog} = [];
 
-	$self->_Startup(
+	$self->_startup(
 		username => $username,
 		password => $password,
 		virtual_host => $virtualhost,
@@ -104,14 +83,18 @@ sub Connect {
 	return $self;
 }
 
-=head2 _Startup
+sub _default {
+	my ( $self, $key, $value, $default ) = @_;
+	if( defined $value ) {
+		return ( $key => $value );
+	}
+	elsif( defined $default ) {
+		return $key => $default;
+	}
+	return;
+}
 
-Does the initial connection back-and-forth with Rabbit to configure the
-connection before we start delivering messages.
-
-=cut
-
-sub _Startup {
+sub _startup {
 	my ( $self, %args ) = @_;
 
 	my $password = $args{password};
@@ -125,20 +108,20 @@ sub _Startup {
 
 	# Kind of non obvious but we're waiting for a response from the server to
 	# our initial headers.
-	$self->RabbitRPC(
+	$self->rpc_request(
 		channel => 0,
 		output => [ Net::AMQP::Protocol->header ],
 		response_type => 'Net::AMQP::Protocol::Connection::Start',
 	);
 
-	my $servertuning = $self->RabbitRPC(
+	my $servertuning = $self->rpc_request(
 		channel => 0,
 		output => [
 			Net::AMQP::Protocol::Connection::StartOk->new(
 				client_properties => {
 					# Can plug all sorts of random stuff in here.
 					platform => 'Perl/NetAMQP',
-					product => Cwd::abs_path( $0 ),
+					product => Cwd::abs_path( $PROGRAM_NAME ),
 					information => 'http://github.com/emarcotte/net-amqp-rabbitmq',
 					version => $VERSION,
 					host => hostname(),
@@ -166,7 +149,7 @@ sub _Startup {
 
 	# Respond to the tune request with tuneok and then officially kick off a
 	# connection to the virtual host.
-	$self->RabbitRPC(
+	$self->rpc_request(
 		channel => 0,
 		output => [
 			Net::AMQP::Protocol::Connection::TuneOk->new(
@@ -184,7 +167,7 @@ sub _Startup {
 	return;
 }
 
-sub RabbitRPC {
+sub rpc_request {
 	my ( $self, %args ) = @_;
 	my $channel = $args{channel};
 	my @output = @{ $args{output} || [] };
@@ -197,7 +180,7 @@ sub RabbitRPC {
 	}
 
 	foreach my $output ( @output ) {
-		$self->_Send(
+		$self->_send(
 			channel => $channel,
 			output => $output,
 		);
@@ -207,18 +190,18 @@ sub RabbitRPC {
 		return;
 	}
 
-	return $self->_LocalReceive(
+	return $self->_local_receive(
 		channel => $channel,
 		method_frame => [ @responsetype ],
 	)->method_frame;
 }
 
-sub _Remote {
+sub _remote {
 	my ( $self, %args ) = @_;
 	return $self->{remote};
 }
 
-sub _Read {
+sub _read {
 	my ( $self, %args ) = @_;
 	my $data;
 	my $stack;
@@ -226,20 +209,20 @@ sub _Read {
 
 	if( ! $timeout || $self->{select}->can_read( $timeout ) ) {
 		# read length (in Bytes)
-		my $bytesread = $self->_Remote->sysread( $data, 8 );
+		my $bytesread = $self->_remote->sysread( $data, 8 );
 		if( ! $bytesread ) {
-			die "Connection closed";
+			Carp::croak 'Connection closed';
 		}
 
 		$stack .= $data;
-		my ( $type_id, $channel, $length ) = unpack( 'CnN', substr( $data, 0, 7, '' ) );
+		my ( $type_id, $channel, $length ) = unpack 'CnN', substr $data, 0, 7, '';
 		$length ||= 0;
 
 		# read until $length bytes read
 		while ( $length > 0 ) {
-			$bytesread = $self->_Remote->sysread( $data, $length );
+			$bytesread = $self->_remote->sysread( $data, $length );
 			if( !$bytesread ) {
-				die "Connection closed";
+				Carp::croak 'Connection closed';
 			}
 			$length -= $bytesread;
 			$stack .= $data;
@@ -250,8 +233,8 @@ sub _Read {
 	return ();
 }
 
-sub _CheckFrame {
-	my( $frame, %args ) = @_;
+sub _check_frame {
+	my( $self, $frame, %args ) = @_;
 
 	if( defined $args{channel} && $frame->channel != $args{channel} ) {
 		return 0;
@@ -265,7 +248,7 @@ sub _CheckFrame {
 		! List::MoreUtils::any { ref $frame->{method_frame} eq $_ } @{ $args{method_frame} } ) {
 		return 0;
 	}
-	
+
 	if( defined $args{header_frame} &&
 		! List::MoreUtils::any { ref $frame->{header_frame} eq $_ } @{ $args{header_frame} } ) {
 		return 0
@@ -274,23 +257,23 @@ sub _CheckFrame {
 	return 1;
 }
 
-sub _FirstInFrameList {
-	my( $list, %args ) = @_;
-	my $firstindex = List::MoreUtils::firstidx { _CheckFrame( $_, %args ) } @$list;
-	if( $firstindex < 0 ) {
-		return;
+sub _first_in_frame_list {
+	my( $self, $list, %args ) = @_;
+	my $firstindex = List::MoreUtils::firstidx { $self->_check_frame( $_, %args) } @{ $list };
+	my $frame;
+	if( $firstindex >= 0 ) {
+		$frame = $list->[$firstindex];
+		splice @{ $list }, $firstindex, 1;
 	}
-	my $frame = $list->[$firstindex];
-	splice( @$list, $firstindex, 1 );
 	return $frame;
 }
 
-sub _ReceiveCancel {
+sub _receive_cancel {
 	my( $self, %args ) = @_;
 
 	my $cancel_frame = $args{cancel_frame};
 
-	if( my $sub = $self->BasicCancelCallback ) {
+	if( my $sub = $self->basic_cancel_callback ) {
 		$sub->(
 			cancel_frame => $cancel_frame,
 		);
@@ -299,21 +282,21 @@ sub _ReceiveCancel {
 	return;
 }
 
-sub _LocalReceive {
+sub _local_receive {
 	my( $self, %args ) = @_;
 
 	# Check the backlog first.
-	if( my $frame = _FirstInFrameList( $self->{backlog}, %args ) ) {
+	if( my $frame = $self->_first_in_frame_list( $self->{backlog}, %args ) ) {
 		return $frame;
 	}
 
 	while( 1 ) {
-		my @frames = $self->_Read();
+		my @frames = $self->_read();
 		foreach my $frame ( @frames ) {
 			# TODO March of the ugly.
 			# TODO Reasonable cancel handlers look like ?
-			if( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Basic::Cancel' ] ) ) ) {
-				$self->_ReceiveCancel(
+			if( $self->_check_frame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Basic::Cancel' ] ) ) ) {
+				$self->_receive_cancel(
 					cancel_frame => $frame,
 				);
 			}
@@ -322,33 +305,28 @@ sub _LocalReceive {
 			# Messages on channel 0 saying that the connection is closed. That's
 			# a big error, we should probably mark this session as invalid.
 			# TODO could comebind checks, mini optimization
-			if( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Connection::Close'] ) ) ) {
-				Carp::croak sprintf(
-					"Connection closed %s",
-					$frame->method_frame->reply_text
-				);
+			if( $self->_check_frame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Connection::Close'] ) ) ) {
+				Carp::croak sprintf 'Connection closed %s', $frame->method_frame->reply_text;
 			}
 			# TODO only filter for the channel we passed?
-			elsif( _CheckFrame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Channel::Close'] ) ) ) {
+			elsif( $self->_check_frame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Channel::Close'] ) ) ) {
 				# TODO Mark the channel as dead?
-				Carp::croak sprintf(
-					"Channel %d closed %s",
-					$frame->channel,
-					$frame->method_frame->reply_text
-				);
+				Carp::croak sprintf 'Channel %d closed %s', $frame->channel, $frame->method_frame->reply_text;
 			}
 		}
 
-		my $frame = _FirstInFrameList( \@frames, %args );
-		push( @{ $self->{backlog} }, @frames );
-				return $frame if $frame;
+		my $frame = $self->_first_in_frame_list( \@frames, %args );
+		push @{ $self->{backlog} }, @frames;
+		return $frame if $frame;
 	}
+
+	return;
 }
 
-sub _ReceiveDelivery {
+sub _receive_delivery {
 	my ( $self, %args ) = @_;
 
-	my $headerframe = $self->_LocalReceive(
+	my $headerframe = $self->_local_receive(
 		channel => $args{channel},
 		header_frame => [ 'Net::AMQP::Protocol::Basic::ContentHeader' ],
 	);
@@ -357,7 +335,7 @@ sub _ReceiveDelivery {
 	my $payload = '';
 
 	while( length( $payload ) < $length ) {
-		my $frame = $self->_LocalReceive(
+		my $frame = $self->_local_receive(
 			channel => $args{channel},
 			type => 'Net::AMQP::Frame::Body',
 		);
@@ -370,10 +348,10 @@ sub _ReceiveDelivery {
 	);
 }
 
-sub Receive {
+sub receive {
 	my ( $self, %args ) = @_;
 
-	my $nextframe = $self->_LocalReceive(
+	my $nextframe = $self->_local_receive(
 		channel => $args{channel},
 	);
 
@@ -381,22 +359,22 @@ sub Receive {
 		my $method_frame = $nextframe->method_frame;
 
 		if( ref $method_frame eq 'Net::AMQP::Protocol::Basic::Deliver' ) {
-			return (
-				$self->_ReceiveDelivery(
+			return {
+				$self->_receive_delivery(
 					channel => $nextframe->channel,
 				),
 				delivery_frame => $nextframe,
-			);
+			};
 		}
 	}
 
 	return $nextframe;
 }
 
-sub Disconnect {
+sub disconnect {
 	my($self, $args ) = @_;
 
-	$self->RabbitRPC(
+	$self->rpc_request(
 		channel => 0,
 		output => [
 			Net::AMQP::Protocol::Connection::Close->new(
@@ -405,21 +383,21 @@ sub Disconnect {
 		resposnse_type => 'Net::AMQP::Protocol::Connection::CloseOk',
 	);
 
-	if( ! $self->_Remote->close() ) {
+	if( ! $self->_remote->close() ) {
 		Carp::croak "Could not close socket: $OS_ERROR";
 	}
 
 	return;
 }
 
-sub _Send {
+sub _send {
 	my ( $self, %args ) = @_;
 	my $channel = $args{channel};
 	my $output = $args{output};
 
 	my $write;
 	if( ref $output ) {
-		if ( $output->isa("Net::AMQP::Protocol::Base") ) {
+		if ( $output->isa('Net::AMQP::Protocol::Base') ) {
 			$output = $output->frame_wrap;
 		}
 
@@ -433,18 +411,18 @@ sub _Send {
 		$write = $output;
 	}
 
-	$self->_Remote->syswrite( $write ) or
+	$self->_remote->syswrite( $write ) or
 		Carp::croak "Could not write to socket: $OS_ERROR";
 
 	return;
 }
 
-sub ChannelOpen {
+sub channel_open {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Channel::Open->new(
@@ -454,12 +432,12 @@ sub ChannelOpen {
 	);
 }
 
-sub ExchangeDeclare {
+sub exchange_declare {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Exchange::Declare->new(
@@ -474,12 +452,12 @@ sub ExchangeDeclare {
 	);
 }
 
-sub ExchangeDelete {
+sub exchange_delete {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Exchange::Delete->new(
@@ -491,12 +469,12 @@ sub ExchangeDelete {
 	);
 }
 
-sub QueueDeclare {
+sub queue_declare {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 
-	return$self->RabbitRPC(
+	return$self->rpc_request(
 		channel => $channel,
 		output => [
 			 Net::AMQP::Protocol::Queue::Declare->new(
@@ -506,7 +484,7 @@ sub QueueDeclare {
 				exclusive => $args{exclusive},
 				auto_delete => $args{auto_delete},
 				arguments => {
-					_default( 'x-expires', $args{expires} ),
+					$self->_default( 'x-expires', $args{expires} ),
 				},
 			),
 		],
@@ -514,7 +492,7 @@ sub QueueDeclare {
 	);
 }
 
-sub QueueBind {
+sub queue_bind {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
@@ -522,27 +500,27 @@ sub QueueBind {
 		queue => $args{queue},
 		exchange => $args{exchange},
 		routing_key => $args{routing_key},
-		_default( 'arguments', $args{headers} ),
+		$self->_default( 'arguments', $args{headers} ),
 	);
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Queue::Bind->new(
 				queue => $args{queue},
 				exchange => $args{exchange},
 				routing_key => $args{routing_key},
-				_default( 'arguments', $args{headers} ),
+				$self->_default( 'arguments', $args{headers} ),
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
 	);
 }
 
-sub QueueDelete {
+sub queue_delete {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Queue::Delete->new(
@@ -555,7 +533,7 @@ sub QueueDelete {
 	);
 }
 
-sub QueueUnbind {
+sub queue_unbind {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
@@ -570,7 +548,7 @@ sub QueueUnbind {
 		$flags{arguments} = $args{headers};
 	}
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Queue::Unbind->new( %flags ),
@@ -579,10 +557,10 @@ sub QueueUnbind {
 	);
 }
 
-sub QueuePurge {
+sub queue_purge {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Queue::Purge->new(
@@ -593,10 +571,10 @@ sub QueuePurge {
 	);
 }
 
-sub BasicAck {
+sub basic_ack {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Basic::Ack->new(
@@ -607,7 +585,7 @@ sub BasicAck {
 	);
 }
 
-sub BasicCancelCallback {
+sub basic_cancel_callback {
 	my ( $self, %args ) = @_;
 	if( $args{callback} ) {
 		$self->{basic_cancel_callback} = $args{callback};
@@ -615,10 +593,10 @@ sub BasicCancelCallback {
 	return $self->{basic_cancel_callback};
 };
 
-sub BasicCancel {
+sub basic_cancel {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Basic::Cancel->new(
@@ -630,12 +608,12 @@ sub BasicCancel {
 	);
 }
 
-sub BasicGet {
+sub basic_get {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 
-	my $get = $self->RabbitRPC(
+	my $get = $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Basic::Get->new(
@@ -653,19 +631,21 @@ sub BasicGet {
 		return;
 	}
 	else {
-		return $self->_ReceiveDelivery(
-			channel => $channel,
-		);
+		return {
+			$self->_receive_delivery(
+				channel => $channel,
+			),
+		}
 	}
 }
 
-sub BasicPublish {
+sub basic_publish {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
 	my $payload = $args{payload};
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			Net::AMQP::Protocol::Basic::Publish->new(
@@ -703,10 +683,10 @@ sub BasicPublish {
 	);
 }
 
-sub BasicConsume {
+sub basic_consume {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Basic::Consume->new(
@@ -719,10 +699,10 @@ sub BasicConsume {
 	);
 }
 
-sub BasicReject {
+sub basic_reject {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Basic::Reject->new(
@@ -730,13 +710,12 @@ sub BasicReject {
 			),
 		],
 	);
-	
 }
 
-sub BasicQos {
+sub basic_qos {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Basic::Qos->new(
@@ -749,10 +728,10 @@ sub BasicQos {
 	);
 }
 
-sub TxSelect {
+sub transaction_select {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Tx::Select->new(
@@ -762,10 +741,10 @@ sub TxSelect {
 	);
 }
 
-sub TxCommit {
+sub transaction_commit {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Tx::Commit->new(
@@ -775,10 +754,10 @@ sub TxCommit {
 	);
 }
 
-sub TxRollback {
+sub transaction_rollback {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Tx::Rollback->new(
@@ -788,10 +767,10 @@ sub TxRollback {
 	);
 }
 
-sub ConfirmSelect {
+sub confirm_select {
 	my ( $self, %args ) = @_;
 
-	return $self->RabbitRPC(
+	return $self->rpc_request(
 		channel => $args{channel},
 		output => [
 			Net::AMQP::Protocol::Confirm::Select->new(
@@ -801,16 +780,18 @@ sub ConfirmSelect {
 	);
 }
 
-sub Heartbeat {
+sub heartbeat {
 	my ( $self, %args ) = @_;
-	return $self->_Send(
+	return $self->_send(
 		channel => 0,
 		output => Net::AMQP::Frame::Heartbeat->new(
 		),
 	);
 }
 
+1;
 
+__END__
 
 =head1 NAME
 
@@ -818,9 +799,15 @@ Net::AMQP::RabbitMQ - Perl-based RabbitMQ AMQP client
 
 =head1 SYNOPSIS
 
-  use NetRabbitMQPerl;
-  blah blah blah
+    use Net::AMQP::RabbitMQ;
 
+    my $connection = Net::AMQP::RabbitMQ->new();
+    $connection->connect;
+    $connection->basic_publish(
+        payload => "Foo",
+        routing_key => "foo.bar",
+    );
+    $connection->disconnect
 
 =head1 DESCRIPTION
 
@@ -830,18 +817,45 @@ to leave the stub unedited.
 
 Blah blah blah.
 
+=head1 VERSION
 
-=head1 USAGE
+This is 0.1
+
+=head1 SUBROUTINES/METHODS
+
+=head2 new
+
+Loads the AMQP protocol definition, primarily. Will not be an active
+connection until Connect is called.
+
+=head2 connect
 
 
+$args{timeout}
+$args{host}
+$args{port}
+$args{password}
+$args{username}
+$args{virtual_host}
+$args{heartbeat}
 
-=head1 BUGS
+=head2 _startup
 
+Does the initial connection back-and-forth with Rabbit to configure the
+connection before we start delivering messages.
 
+=head1 BUGS AND LIMITATIONS
+
+Please report all bugs to the issue tracker on github.
+https://github.com/emarcotte/net-amqp-rabbitmq/issues
+
+One known limitation is that we cannot automatically sending heartbeat frames in
+a useful way.
 
 =head1 SUPPORT
 
-
+Use the issue tracker on github to reach out for support.
+https://github.com/emarcotte/net-amqp-rabbitmq/issues
 
 =head1 AUTHOR
 
@@ -850,7 +864,9 @@ Blah blah blah.
 	emarcotte@athenahealth.com
 	http://athenahealth.com
 
-=head1 COPYRIGHT
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2013 Eugene Marcotte
 
 This program is free software; you can redistribute
 it and/or modify it under the same terms as Perl itself.
@@ -858,11 +874,17 @@ it and/or modify it under the same terms as Perl itself.
 The full text of the license can be found in the
 LICENSE file included with this module.
 
+=head1 INCOMPATIBILITIES
 
 =head1 SEE ALSO
 
-perl(1).
+perl(1), Net::RabbitMQ, Net::AMQP
+
+=head1 DIAGNOSTICS
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+=head1 DEPENDENCIES
+
 
 =cut
-
-1;

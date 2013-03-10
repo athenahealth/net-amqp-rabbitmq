@@ -10,7 +10,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -18,13 +18,13 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel.open";
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_headers',
 		exchange_type => 'direct',
@@ -32,7 +32,7 @@ lives_ok {
 } 'exchange.declare';
 
 lives_ok {
-	$mq->QueueDeclare(
+	$mq->queue_declare(
 		channel => 1,
 		queue => "nr_test_hole",
 		durable => 1,
@@ -42,7 +42,7 @@ lives_ok {
 } "queue_declare";
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => "nr_test_hole",
 		exchange => "perl_test_headers",
@@ -51,7 +51,7 @@ lives_ok {
 } "queue_bind";
 
 lives_ok {
-	1 while($mq->BasicGet( channel => 1, queue => "nr_test_hole" ));
+	1 while($mq->basic_get( channel => 1, queue => "nr_test_hole" ));
 } "drain queue";
 
 my $headers = {
@@ -69,7 +69,7 @@ my $headers = {
 	head12 => 12,
 };
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "nr_test_route",
 		payload => "Header Test",
@@ -81,7 +81,7 @@ lives_ok {
 } "publish" ;
 
 lives_ok {
-	$mq->BasicConsume(
+	$mq->basic_consume(
 		channel => 1,
 		queue => "nr_test_hole",
 		consumer_tag => 'ctag',
@@ -90,13 +90,13 @@ lives_ok {
 	);
 } "consume";
 
-my %msg;
-lives_ok { %msg = $mq->Receive() } 'recv';
+my $msg;
+lives_ok { $msg = $mq->receive() } 'recv';
 
-is( $msg{payload}, 'Header Test', "Received body" );
+is( $msg->{payload}, 'Header Test', "Received body" );
 
 is_deeply(
-	$msg{content_header_frame}{header_frame}{headers},
+	$msg->{content_header_frame}{header_frame}{headers},
 	$headers,
 	"Received headers"
 );

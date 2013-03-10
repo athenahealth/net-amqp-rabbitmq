@@ -11,7 +11,7 @@ use_ok( 'Net::AMQP::RabbitMQ' );
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,14 +19,14 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel.open";
 
 my $testqueue;
 lives_ok {
-	$testqueue = $mq->QueueDeclare(
+	$testqueue = $mq->queue_declare(
 		channel => 1,
 		passive => 0,
 		durable => 0,
@@ -34,10 +34,9 @@ lives_ok {
 		auto_delete => 1,
 	)->queue;
 } 'queue.declare';
-print $testqueue, "\n";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => $testqueue,
 		payload => "awesome!",
@@ -60,7 +59,7 @@ lives_ok {
 
 my $consumertag;
 lives_ok {
-	$consumertag = $mq->BasicConsume(
+	$consumertag = $mq->basic_consume(
 		channel => 1,
 		queue => $testqueue,
 		consumer_tag => 'ctag',
@@ -70,18 +69,18 @@ lives_ok {
 	)->consumer_tag;
 } "consume";
 
-my %rv;
+my $rv;
 lives_ok {
 	local $SIG{ALRM} = sub {
 		die "Timeout";
 	};
 	alarm 5;
-	%rv = $mq->Receive();
+	$rv = $mq->receive();
 	alarm 0;
 } "recv";
 
 is_deeply(
-	{ %rv },
+	$rv,
 	{
 		payload => 'awesome!',
 		content_header_frame => Net::AMQP::Frame::Header->new(

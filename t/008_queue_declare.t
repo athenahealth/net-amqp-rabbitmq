@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,7 +19,7 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 };
@@ -27,7 +27,7 @@ lives_ok {
 my $expect_qn = 'test.net.rabbitmq.perl';
 my $declareok;
 lives_ok {
-	$declareok = $mq->QueueDeclare(
+	$declareok = $mq->queue_declare(
 		channel => 1,
 		queue => $expect_qn,
 		durable => 1,

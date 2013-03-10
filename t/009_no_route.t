@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,19 +19,19 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 lives_ok {
-	$mq->ConfirmSelect(
+	$mq->confirm_select(
 		channel => 1,
 	);
 } 'confirm_select';
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_route",
 		payload => "Magic Payload",
@@ -40,7 +40,7 @@ lives_ok {
 
 # TODO hack Need to build a callback API to replace hacks.
 is_deeply (
-	$mq->Receive(
+	$mq->receive(
 		channel => 1,
 	),
 	Net::AMQP::Frame::Method->new(
@@ -57,7 +57,7 @@ is_deeply (
 
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_route",
 		payload => "Magic Payload",
@@ -68,7 +68,7 @@ lives_ok {
 
 # TODO hack Need to build a callback API to replace hacks.
 is_deeply (
-	$mq->Receive(
+	$mq->receive(
 		channel => 1,
 	),
 	Net::AMQP::Frame::Method->new(
@@ -84,5 +84,5 @@ is_deeply (
 	),
 	'delivery'
 );
-lives_ok { $mq->Disconnect(); } 'disconnect';
+lives_ok { $mq->disconnect(); } 'disconnect';
 

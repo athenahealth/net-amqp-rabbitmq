@@ -18,7 +18,7 @@ my $attempt = 0.6;
 eval {
 	# Give a window of 10 seconds for this to run, it should fail in 5.
 	alarm 10;
-	$mq->Connect(
+	$mq->connect(
 		# google.com:81 drops packets, hooray.
 		host => 'www.google.com',
 		port => 81,
@@ -28,9 +28,10 @@ eval {
 	);
 	alarm 0;
 };
-print "$@\n";
+
 my $duration = tv_interval($start);
 isnt($@, "failed to timeout\n", "failed to timeout");
 isnt($@, '', "connect");
+
 # give a bit of tolerance for the timeout.
-cmp_ok(abs($duration-$attempt), '<', 1, 'timeout');
+cmp_ok( abs( $duration - $attempt ), '<', 1, 'timeout' );

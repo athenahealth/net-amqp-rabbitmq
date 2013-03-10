@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -20,13 +20,13 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 lives_ok {
-	$mq->QueueDeclare(
+	$mq->queue_declare(
 		channel => 1,
 		queue => "nr_test_reject",
 		durable => 1,
@@ -35,7 +35,7 @@ lives_ok {
 } "queue_declare";
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_reject',
 		exchange_type => 'direct',
@@ -43,7 +43,7 @@ lives_ok {
 } 'exchange.declare';
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => "nr_test_reject",
 		exchange => "perl_test_reject",
@@ -52,14 +52,14 @@ lives_ok {
 } "queue_bind";
 
 lives_ok {
-	$mq->QueuePurge(
+	$mq->queue_purge(
 		channel => 1,
 		queue => "nr_test_reject",
 	);
 } "purge";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "nr_test_reject_route",
 		payload => "Magic Payload",
@@ -69,7 +69,7 @@ lives_ok {
 
 my $ctag;
 lives_ok {
-	$ctag = $mq->BasicConsume(
+	$ctag = $mq->basic_consume(
 		channel => 1,
 		queue => "nr_test_reject",
 		no_ack => 0,
@@ -78,7 +78,7 @@ lives_ok {
 } "consuming";
 
 is_deeply(
-	{ $mq->Receive() },
+	$mq->receive(),
 	{
 		delivery_frame => Net::AMQP::Frame::Method->new(
 			type_id => 1,
@@ -107,10 +107,10 @@ is_deeply(
 	"payload",
 );
 
-lives_ok { $mq->Disconnect } "disconnect";
+lives_ok { $mq->disconnect } "disconnect";
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -118,13 +118,13 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel_open";
 
 lives_ok {
-	$ctag = $mq->BasicConsume(
+	$ctag = $mq->basic_consume(
 		channel => 1,
 		queue => "nr_test_reject",
 		no_ack => 0,
@@ -132,9 +132,9 @@ lives_ok {
 	)->consumer_tag;
 } "consuming";
 
-my %delivery;
+my $delivery;
 is_deeply(
-	{ %delivery = $mq->Receive() },
+	$delivery = $mq->receive(),
 	{
 		delivery_frame => Net::AMQP::Frame::Method->new(
 			type_id => 1,
@@ -164,9 +164,9 @@ is_deeply(
 );
 
 lives_ok {
-	$mq->BasicReject(
+	$mq->basic_reject(
 		channel => 1,
-		delivery_tag => $delivery{delivery_frame}->method_frame->delivery_tag,
+		delivery_tag => $delivery->{delivery_frame}->method_frame->delivery_tag,
 	);
 } "rejecting";
 

@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new(), "Created object" );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,7 +19,7 @@ lives_ok {
 } "connect";
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } "channel.open";
@@ -28,7 +28,7 @@ my $delete = 1;
 my $queue = "x-headers-" . rand();
 
 lives_ok {
-	$queue = $mq->QueueDeclare(
+	$queue = $mq->queue_declare(
 		channel => 1,
 		queue => $queue,
 		auto_delete => $delete,
@@ -37,7 +37,7 @@ lives_ok {
 } "queue_declare";
 
 throws_ok {
-	$queue = $mq->QueueDeclare(
+	$queue = $mq->queue_declare(
 		channel => 1,
 		queue => $queue,
 		auto_delete => $delete,

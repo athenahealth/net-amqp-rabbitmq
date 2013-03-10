@@ -26,6 +26,7 @@ t/016_reject.t
 t/017_queue_delete.t
 t/018_cancel.t
 t/019_consumer_cancel.t
+t/020_bad_credentials.t
 Makefile.PL
 META.yml
 META.json

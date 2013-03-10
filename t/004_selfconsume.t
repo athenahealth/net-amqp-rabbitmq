@@ -11,7 +11,7 @@ use_ok( 'Net::AMQP::RabbitMQ' );
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		user => "guest",
 		password => "guest",
@@ -19,13 +19,13 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_selfconsume',
 		exchange_type => 'direct',
@@ -35,7 +35,7 @@ lives_ok {
 
 my $queuename = '';
 lives_ok {
-	$queuename = $mq->QueueDeclare(
+	$queuename = $mq->queue_declare(
 		channel => 1,
 		queue => '',
 		durable => 1,
@@ -45,7 +45,7 @@ lives_ok {
 } 'queue.declare';
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => $queuename,
 		exchange => "perl_test_selfconsume",
@@ -54,7 +54,7 @@ lives_ok {
 } "queue_bind";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "test_q",
 		payload => "Magic Transient Payload",
@@ -64,7 +64,7 @@ lives_ok {
 
 my $consumer_tag;
 lives_ok {
-	$consumer_tag = $mq->BasicConsume(
+	$consumer_tag = $mq->basic_consume(
 		channel => 1,
 		queue => $queuename,
 		consumer_tag => 'ctag',
@@ -75,7 +75,7 @@ lives_ok {
 } 'basic.consume';
 
 is_deeply(
-	{ $mq->Receive() },
+	$mq->receive(),
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => '23',

@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,13 +19,13 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_publish',
 		exchange_type => 'direct',
@@ -33,7 +33,7 @@ lives_ok {
 } 'exchange.declare';
 
 lives_ok {
-	$mq->QueueDeclare(
+	$mq->queue_declare(
 		channel => 1,
 		queue => "perl_test_queue",
 		passive => 0,
@@ -44,7 +44,7 @@ lives_ok {
 } "queue.declare";
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => "perl_test_queue",
 		exchange => "perl_test_publish",
@@ -53,11 +53,11 @@ lives_ok {
 } "queue.bind";
 
 lives_ok {
-	1 while( $mq->BasicGet( channel => 1, queue => "perl_test_queue" ) );
+	1 while( $mq->basic_get( channel => 1, queue => "perl_test_queue" ) );
 } "drain queue";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_queue",
 		payload => "Magic Payload",

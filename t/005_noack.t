@@ -11,7 +11,7 @@ use_ok('Net::AMQP::RabbitMQ');
 ok( my $mq = Net::AMQP::RabbitMQ->new() );
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -19,13 +19,13 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	)
 } 'channel.open';
 
 lives_ok {
-	$mq->ExchangeDeclare(
+	$mq->exchange_declare(
 		channel => 1,
 		exchange => 'perl_test_noack',
 		exchange_type => 'direct',
@@ -34,7 +34,7 @@ lives_ok {
 
 
 lives_ok {
-	$mq->QueueDeclare(
+	$mq->queue_declare(
 		channel => 1,
 		queue => "perl_test_ack",
 		passive => 0,
@@ -45,7 +45,7 @@ lives_ok {
 } "queue_declare";
 
 lives_ok {
-	$mq->QueueBind(
+	$mq->queue_bind(
 		channel => 1,
 		queue => "perl_test_ack",
 		exchange => "perl_test_noack",
@@ -54,7 +54,7 @@ lives_ok {
 } "queue_bind";
 
 lives_ok {
-	$mq->QueuePurge(
+	$mq->queue_purge(
 		channel => 1,
 		queue => "perl_test_ack",
 	);
@@ -63,7 +63,7 @@ lives_ok {
 my $payload = "Magic Payload $$";
 
 lives_ok {
-	$mq->BasicPublish(
+	$mq->basic_publish(
 		channel => 1,
 		routing_key => "perl_test_ack_route",
 		payload => $payload,
@@ -73,7 +73,7 @@ lives_ok {
 
 my $consumer_tag;
 lives_ok {
-	$consumer_tag = $mq->BasicConsume(
+	$consumer_tag = $mq->basic_consume(
 		channel => 1,
 		queue => "perl_test_ack",
 		no_ack => 0,
@@ -82,7 +82,7 @@ lives_ok {
 } "basic.consume";
 
 is_deeply(
-	{ $mq->Receive() },
+	$mq->receive(),
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => length $payload,
@@ -112,11 +112,11 @@ is_deeply(
 );
 
 lives_ok {
-	$mq->Disconnect();
+	$mq->disconnect();
 } "disconnect";
 
 lives_ok {
-	$mq->Connect(
+	$mq->connect(
 		host => $host,
 		username => "guest",
 		password => "guest",
@@ -124,13 +124,13 @@ lives_ok {
 } 'connect';
 
 lives_ok {
-	$mq->ChannelOpen(
+	$mq->channel_open(
 		channel => 1,
 	);
 } 'channel.open';
 
 lives_ok {
-	$consumer_tag = $mq->BasicConsume(
+	$consumer_tag = $mq->basic_consume(
 		channel => 1,
 		queue => "perl_test_ack",
 		no_ack => 0,
@@ -140,7 +140,7 @@ lives_ok {
 } 'basic.consume';
 
 is_deeply(
-	{ my %message = $mq->Receive() },
+	my $message = $mq->receive(),
 	{
 		content_header_frame => Net::AMQP::Frame::Header->new(
 			body_size => length $payload,
@@ -170,14 +170,14 @@ is_deeply(
 );
 
 lives_ok {
-	$mq->BasicAck(
+	$mq->basic_ack(
 		channel => 1,
-		delivery_tag => $message{delivery_frame}->method_frame->delivery_tag,
+		delivery_tag => $message->{delivery_frame}->method_frame->delivery_tag,
 	);
 } 'basic.ack';
 
 lives_ok {
-	$mq->Disconnect();
+	$mq->disconnect();
 } "disconnect";
 
 
