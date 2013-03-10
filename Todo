@@ -3,5 +3,9 @@ TODO list for Perl module Net::AMQP::RabbitMQ
 - Add more callback APIs on top of basic send/recv APIs.
 - Expose timeout in various APIs more explicitly.
 - Document API, provide simple examples
-
-
+- method naming to und method_names_like_this
+- accessors
+- pod at the end
+- fix excessive copies ( my @output = @{ $args{output} || [] };
+- validate all error cases (e.g. sysread, http://perldoc.perl.org/functions/sysread.html )
+- _default to method,
