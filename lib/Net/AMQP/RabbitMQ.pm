@@ -124,7 +124,7 @@ sub _startup {
 	);
 
 	if( Net::AMQP::Common->can("true") ) {
-		$client_properties{capabilities}{consumer_cancel_notify} = Net::AMQP::Common::true;
+		$client_properties{capabilities}{consumer_cancel_notify} = Net::AMQP::Common->true;
 	}
 
 	my $servertuning = $self->rpc_request(
