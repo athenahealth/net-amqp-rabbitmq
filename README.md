@@ -17,6 +17,10 @@ Building the module should be straightforward.
 	# Install the module
 	./Build install
 
+# Build Status
+
+[![Build Status](https://travis-ci.org/emarcotte/net-amqp-rabbitmq.png)](https://travis-ci.org/emarcotte/net-amqp-rabbitmq)
+
 # Tests
 
 The tests in this library are based on those found in Net::RabbitMQ.

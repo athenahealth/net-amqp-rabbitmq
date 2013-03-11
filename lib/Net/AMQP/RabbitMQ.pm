@@ -114,21 +114,24 @@ sub _startup {
 		response_type => 'Net::AMQP::Protocol::Connection::Start',
 	);
 
+	my %client_properties = (
+		# Can plug all sorts of random stuff in here.
+		platform => 'Perl/NetAMQP',
+		product => Cwd::abs_path( $PROGRAM_NAME ),
+		information => 'http://github.com/emarcotte/net-amqp-rabbitmq',
+		version => $VERSION,
+		host => hostname(),
+	);
+
+	if( Net::AMQP::Common->can("true") ) {
+		$client_properties{capabilities}{consumer_cancel_notify} = Net::AMQP::Common::true;
+	}
+
 	my $servertuning = $self->rpc_request(
 		channel => 0,
 		output => [
 			Net::AMQP::Protocol::Connection::StartOk->new(
-				client_properties => {
-					# Can plug all sorts of random stuff in here.
-					platform => 'Perl/NetAMQP',
-					product => Cwd::abs_path( $PROGRAM_NAME ),
-					information => 'http://github.com/emarcotte/net-amqp-rabbitmq',
-					version => $VERSION,
-					host => hostname(),
-					capabilities => {
-						consumer_cancel_notify => Net::AMQP::Common::true,
-					},
-				},
+				client_properties => \%client_properties,
 				mechanism => 'AMQPLAIN',
 				response => {
 					LOGIN => $username,
