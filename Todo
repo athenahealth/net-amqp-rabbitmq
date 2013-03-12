@@ -4,7 +4,6 @@ TODO list for Perl module Net::AMQP::RabbitMQ
 - Expose timeout in various APIs more explicitly.
 - Document API, provide simple examples
 - Connection properties at startup
-- Accessors
 - POD at the end
 - Fix excessive copies ( my @output = @{ $args{output} || [] };
 - Validate all error cases (e.g. sysread, http://perldoc.perl.org/functions/sysread.html )

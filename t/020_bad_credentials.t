@@ -25,4 +25,4 @@ throws_ok {
 		timeout => $attempt,
 	);
 	alarm 0;
-} qr/Connection closed/, "Invalid credentials";
+} qr/Read error: Connection reset/, "Invalid credentials";

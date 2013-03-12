@@ -46,32 +46,34 @@ sub connect {
 			Time::HiRes::alarm( $args{timeout} );
 		}
 
-		$self->{remote} = IO::Socket::INET->new(
-			PeerAddr => $args{host} || 'localhost',
-			PeerPort => $args{port} || 5672,
-			Proto => 'tcp',
-		) or Carp::croak "Could not connect: $EVAL_ERROR";
+		$self->_remote(
+			IO::Socket::INET->new(
+				PeerAddr => $args{host} || 'localhost',
+				PeerPort => $args{port} || 5672,
+				Proto => 'tcp',
+			) or Carp::croak "Could not connect: $EVAL_ERROR"
+		);
+
+		$self->_select( IO::Select->new( $self->{remote} ) );
 
 		if( $args{timeout} ) {
 			Time::HiRes::alarm( 0 );
 		}
-		# if( ! $self->{select}->can_write( $args{timeout} ) ) {
 	}
 	catch {
 		Carp::croak $_;
 	};
 
-	$self->{remote}->autoflush( 1 );
+	$self->_remote->autoflush( 1 );
 
 	my $password = $args{password} || 'guest';
 	my $username = $args{username} || 'guest';
 	my $virtualhost = $args{virtual_host} || '/';
 	my $heartbeat = $args{heartbeat} || 0;
 
-	$self->{select} = IO::Select->new( $self->{remote} );
 
 	# Backlog of messages.
-	$self->{backlog} = [];
+	$self->_backlog( [] );
 
 	$self->_startup(
 		username => $username,
@@ -199,9 +201,34 @@ sub rpc_request {
 	)->method_frame;
 }
 
+sub _backlog {
+	my ( $self, $backlog ) = @_;
+	$self->{backlog} = $backlog if $backlog;
+	return $self->{backlog};
+}
+
+sub _select {
+	my ( $self, $select ) = @_;
+	$self->{select} = $select if $select;
+	return $self->{select};
+}
+
 sub _remote {
-	my ( $self, %args ) = @_;
+	my ( $self, $remote ) = @_;
+	$self->{remote} = $remote if $remote;
 	return $self->{remote};
+}
+
+sub _read_length {
+	my ( $self, $data, $length ) = @_;
+	my $bytesread = $self->_remote->sysread( $$data, $length );
+	if( ! defined $bytesread ) {
+		Carp::croak "Read error: $OS_ERROR";
+	}
+	elsif( $bytesread == 0 ) {
+		Carp::croak "Connection closed";
+	}
+	return $bytesread;
 }
 
 sub _read {
@@ -210,12 +237,10 @@ sub _read {
 	my $stack;
 	my $timeout = $args{timeout};
 
-	if( ! $timeout || $self->{select}->can_read( $timeout ) ) {
-		# read length (in Bytes)
-		my $bytesread = $self->_remote->sysread( $data, 8 );
-		if( ! $bytesread ) {
-			Carp::croak 'Connection closed';
-		}
+	if( ! $timeout || $self->_select->can_read( $timeout ) ) {
+		# read length (in bytes) of incoming frame, by reading first 8 bytes and
+		# unpacking.
+		my $bytesread = $self->_read_length( \$data, 8 );
 
 		$stack .= $data;
 		my ( $type_id, $channel, $length ) = unpack 'CnN', substr $data, 0, 7, '';
@@ -223,10 +248,7 @@ sub _read {
 
 		# read until $length bytes read
 		while ( $length > 0 ) {
-			$bytesread = $self->_remote->sysread( $data, $length );
-			if( !$bytesread ) {
-				Carp::croak 'Connection closed';
-			}
+			$bytesread = $self->_read_length( \$data, $length );
 			$length -= $bytesread;
 			$stack .= $data;
 		}
@@ -289,7 +311,7 @@ sub _local_receive {
 	my( $self, %args ) = @_;
 
 	# Check the backlog first.
-	if( my $frame = $self->_first_in_frame_list( $self->{backlog}, %args ) ) {
+	if( my $frame = $self->_first_in_frame_list( $self->_backlog, %args ) ) {
 		return $frame;
 	}
 
@@ -319,7 +341,7 @@ sub _local_receive {
 		}
 
 		my $frame = $self->_first_in_frame_list( \@frames, %args );
-		push @{ $self->{backlog} }, @frames;
+		push @{ $self->_backlog }, @frames;
 		return $frame if $frame;
 	}
 
@@ -590,9 +612,7 @@ sub basic_ack {
 
 sub basic_cancel_callback {
 	my ( $self, %args ) = @_;
-	if( $args{callback} ) {
-		$self->{basic_cancel_callback} = $args{callback};
-	}
+	$self->{basic_cancel_callback} = $args{callback} if( $args{callback} );
 	return $self->{basic_cancel_callback};
 };
 
