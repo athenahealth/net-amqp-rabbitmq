@@ -235,8 +235,8 @@ sub _read {
 	my ( $self, %args ) = @_;
 	my $data;
 	my $stack;
-	my $timeout = $args{timeout};
 
+	my $timeout = $args{timeout};
 	if( ! $timeout || $self->_select->can_read( $timeout ) ) {
 		# read length (in bytes) of incoming frame, by reading first 8 bytes and
 		# unpacking.
@@ -315,8 +315,18 @@ sub _local_receive {
 		return $frame;
 	}
 
+	my $due_by = Time::HiRes::time() + ($args{timeout} || 0);
+
 	while( 1 ) {
-		my @frames = $self->_read();
+		my $timeout = $args{timeout} ? $due_by - Time::HiRes::time() : 0;
+		if( $args{timeout} && $timeout <= 0 ) {
+			return;
+		}
+
+		my @frames = $self->_read(
+			timeout => $timeout,
+		);
+
 		foreach my $frame ( @frames ) {
 			# TODO March of the ugly.
 			# TODO Reasonable cancel handlers look like ?
@@ -377,6 +387,7 @@ sub receive {
 	my ( $self, %args ) = @_;
 
 	my $nextframe = $self->_local_receive(
+		timeout => $args{timeout},
 		channel => $args{channel},
 	);
 
