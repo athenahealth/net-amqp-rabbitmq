@@ -46,7 +46,7 @@ sub connect {
 			Time::HiRes::alarm( $args{timeout} );
 		}
 
-		$self->_remote(
+		$self->_set_handle(
 			IO::Socket::INET->new(
 				PeerAddr => $args{host} || 'localhost',
 				PeerPort => $args{port} || 5672,
@@ -54,7 +54,7 @@ sub connect {
 			) or Carp::croak "Could not connect: $EVAL_ERROR"
 		);
 
-		$self->_select( IO::Select->new( $self->{remote} ) );
+		$self->_select( IO::Select->new( $self->_get_handle ) );
 
 		if( $args{timeout} ) {
 			Time::HiRes::alarm( 0 );
@@ -64,7 +64,7 @@ sub connect {
 		Carp::croak $_;
 	};
 
-	$self->_remote->autoflush( 1 );
+	$self->_get_handle->autoflush( 1 );
 
 	my $password = $args{password} || 'guest';
 	my $username = $args{username} || 'guest';
@@ -213,19 +213,35 @@ sub _select {
 	return $self->{select};
 }
 
-sub _remote {
-	my ( $self, $remote ) = @_;
-	$self->{remote} = $remote if $remote;
-	return $self->{remote};
+sub _clear_handle {
+	my ( $self ) = @_;
+	$self->_set_handle( undef );
+	return;
+}
+
+sub _set_handle {
+	my ( $self, $handle ) = @_;
+	$self->{handle} = $handle;
+	return;
+}
+
+sub _get_handle {
+	my ( $self ) = @_;
+	my $handle = $self->{handle};
+	if( ! $handle ) {
+		Carp::croak "Not connected to broker.";
+	}
+	return $handle;
 }
 
 sub _read_length {
 	my ( $self, $data, $length ) = @_;
-	my $bytesread = $self->_remote->sysread( $$data, $length );
+	my $bytesread = $self->_get_handle->sysread( $$data, $length );
 	if( ! defined $bytesread ) {
 		Carp::croak "Read error: $OS_ERROR";
 	}
 	elsif( $bytesread == 0 ) {
+		$self->_clear_handle;
 		Carp::croak "Connection closed";
 	}
 	return $bytesread;
@@ -341,6 +357,7 @@ sub _local_receive {
 			# a big error, we should probably mark this session as invalid.
 			# TODO could comebind checks, mini optimization
 			if( $self->_check_frame( $frame, ( method_frame => [ 'Net::AMQP::Protocol::Connection::Close'] ) ) ) {
+				$self->_clear_handle;
 				Carp::croak sprintf 'Connection closed %s', $frame->method_frame->reply_text;
 			}
 			# TODO only filter for the channel we passed?
@@ -419,7 +436,8 @@ sub disconnect {
 		resposnse_type => 'Net::AMQP::Protocol::Connection::CloseOk',
 	);
 
-	if( ! $self->_remote->close() ) {
+	if( ! $self->_get_handle->close() ) {
+		$self->_clear_handle;
 		Carp::croak "Could not close socket: $OS_ERROR";
 	}
 
@@ -447,7 +465,7 @@ sub _send {
 		$write = $output;
 	}
 
-	$self->_remote->syswrite( $write ) or
+	$self->_get_handle->syswrite( $write ) or
 		Carp::croak "Could not write to socket: $OS_ERROR";
 
 	return;

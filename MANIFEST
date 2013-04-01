@@ -27,6 +27,8 @@ t/017_queue_delete.t
 t/018_cancel.t
 t/019_consumer_cancel.t
 t/020_bad_credentials.t
+t/021_read_timeout.t
+t/022_close.t
 Makefile.PL
 META.yml
 META.json
