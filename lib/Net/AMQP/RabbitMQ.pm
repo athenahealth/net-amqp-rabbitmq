@@ -775,8 +775,9 @@ sub basic_consume {
 		output => [
 			Net::AMQP::Protocol::Basic::Consume->new(
 				queue => $args{queue},
-				exchange => $args{exchange},
-				routing_key => $args{routing_key},
+				consumer_tag => $args{consumer_tag},
+				exclusive => $args{exclusive},
+				no_ack => $args{no_ack},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Basic::ConsumeOk',
