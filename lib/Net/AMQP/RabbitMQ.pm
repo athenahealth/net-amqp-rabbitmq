@@ -85,6 +85,43 @@ sub connect {
 	return $self;
 }
 
+sub set_keepalive {
+	my ( $self, %args ) = @_;
+	my $handle = $self->_get_handle;
+	my $idle = $args{idle};
+	my $count = $args{count};
+	my $interval = $args{interval};
+
+	if( eval { require Socket::Linux } ) {
+		# Turn on keep alive probes.
+		defined $handle->sockopt( SO_KEEPALIVE, 1 )
+			or Carp::croak "Could not turn on tcp keep alive: $OS_ERROR";
+
+		# Time between last meaningful packet and first keep alive
+		if( defined $idle ) {
+			defined $handle->setsockopt( Socket::IPPROTO_TCP, Socket::Linux::TCP_KEEPIDLE(), $idle )
+				or Carp::croak "Could not set keep alive idle time: $OS_ERROR";
+		}
+
+		# Time between keep alives
+		if( defined $interval ) {
+			defined $handle->setsockopt( Socket::IPPROTO_TCP, Socket::Linux::TCP_KEEPINTVL(), $interval )
+				or Carp::croak "Could not set keep alive interval time: $OS_ERROR";
+		}
+
+		# Number of failures to allow
+		if( defined $count ) {
+			defined $handle->setsockopt( Socket::IPPROTO_TCP, Socket::Linux::TCP_KEEPCNT(), $count )
+				or Carp::croak "Could not set keep alive count: $OS_ERROR";
+		}
+	}
+	else {
+		Carp::croak "Unable to find constants for keepalive settings";
+	}
+
+	return;
+}
+
 sub _default {
 	my ( $self, $key, $value, $default ) = @_;
 	if( defined $value ) {

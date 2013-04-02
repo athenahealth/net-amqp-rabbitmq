@@ -12,6 +12,11 @@ my $build = Module::Build->new(
 		'File::ShareDir' => 1.00,
 	},
 
+	recommends => {
+		# Allows TCP keep alive functionality to work
+		'Socket::Linux' => 0.01,
+	},
+
 	build_requires => {
 		'Test::Exception' => 0.24,
 	},
