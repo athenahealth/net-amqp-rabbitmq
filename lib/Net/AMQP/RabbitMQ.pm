@@ -597,12 +597,7 @@ sub queue_bind {
 	return $self->rpc_request(
 		channel => $channel,
 		output => [
-			Net::AMQP::Protocol::Queue::Bind->new(
-				queue => $args{queue},
-				exchange => $args{exchange},
-				routing_key => $args{routing_key},
-				$self->_default( 'arguments', $args{headers} ),
-			),
+			Net::AMQP::Protocol::Queue::Bind->new( %flags ),
 		],
 		response_type => 'Net::AMQP::Protocol::Queue::BindOk',
 	);
