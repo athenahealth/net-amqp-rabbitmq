@@ -537,6 +537,10 @@ sub exchange_declare {
 				passive => $args{passive},
 				durable => $args{durable},
 				auto_delete => $args{auto_delete},
+				internal => $args{internal},
+				arguments => {
+					$self->_default( 'alternate_exchange', $args{alternate_exchange} ),
+				},
 			),
 		],
 		response_type => 'Net::AMQP::Protocol::Exchange::DeclareOk',
@@ -565,7 +569,7 @@ sub queue_declare {
 
 	my $channel = $args{channel};
 
-	return$self->rpc_request(
+	return $self->rpc_request(
 		channel => $channel,
 		output => [
 			 Net::AMQP::Protocol::Queue::Declare->new(
@@ -576,6 +580,7 @@ sub queue_declare {
 				auto_delete => $args{auto_delete},
 				arguments => {
 					$self->_default( 'x-expires', $args{expires} ),
+					$self->_default( 'x-message-ttl', $args{message_ttl} ),
 				},
 			),
 		],
