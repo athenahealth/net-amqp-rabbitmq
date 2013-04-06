@@ -797,6 +797,7 @@ sub basic_reject {
 		output => [
 			Net::AMQP::Protocol::Basic::Reject->new(
 				delivery_tag => $args{delivery_tag},
+				requeue => $args{requeue},
 			),
 		],
 	);
