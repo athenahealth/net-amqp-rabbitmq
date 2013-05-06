@@ -53,6 +53,7 @@ lives_ok {
 		exchange => $exchange,
 		routing_key => $key,
 		headers => $headers,
+		x_match => 'any',
 	);
 } "queue_bind";
 
@@ -141,6 +142,7 @@ lives_ok {
 		exchange => $exchange,
 		routing_key => $key,
 		headers => $headers,
+		x_match => 'any',
 	);
 } "queue_unbind";
 

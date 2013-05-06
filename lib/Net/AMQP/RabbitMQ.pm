@@ -11,6 +11,7 @@ use English qw(-no_match_vars);
 use File::ShareDir;
 use IO::Select;
 use IO::Socket::INET;
+use Socket qw( IPPROTO_TCP );
 use List::MoreUtils;
 use Net::AMQP;
 use Sys::Hostname;
@@ -592,11 +593,15 @@ sub queue_bind {
 	my ( $self, %args ) = @_;
 
 	my $channel = $args{channel};
+
 	my %flags = (
 		queue => $args{queue},
 		exchange => $args{exchange},
 		routing_key => $args{routing_key},
-		$self->_default( 'arguments', $args{headers} ),
+		arguments => {
+			%{ $args{headers} || {} },
+			$self->_default( 'x-match', $args{x_match} ),
+		},
 	);
 
 	return $self->rpc_request(
@@ -633,11 +638,11 @@ sub queue_unbind {
 		queue => $args{queue},
 		exchange => $args{exchange},
 		routing_key => $args{routing_key},
+		arguments => {
+			%{ $args{headers} || {} },
+			$self->_default( 'x-match', $args{x_match} ),
+		},
 	);
-
-	if( $args{headers} ) {
-		$flags{arguments} = $args{headers};
-	}
 
 	return $self->rpc_request(
 		channel => $channel,
