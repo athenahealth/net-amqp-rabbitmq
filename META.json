@@ -25,10 +25,13 @@
          }
       },
       "runtime" : {
+         "recommends" : {
+            "Socket::Linux" : "0.01"
+         },
          "requires" : {
             "File::ShareDir" : "1",
             "List::MoreUtils" : "0.25",
-            "Net::AMQP" : "0.05"
+            "Net::AMQP" : "0.06"
          }
       }
    },

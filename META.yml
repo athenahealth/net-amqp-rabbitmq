@@ -17,10 +17,12 @@ provides:
   Net::AMQP::RabbitMQ:
     file: lib/Net/AMQP/RabbitMQ.pm
     version: 0.01
+recommends:
+  Socket::Linux: 0.01
 requires:
   File::ShareDir: 1
   List::MoreUtils: 0.25
-  Net::AMQP: 0.05
+  Net::AMQP: 0.06
 resources:
   license: http://dev.perl.org/licenses/
 version: 0.01
