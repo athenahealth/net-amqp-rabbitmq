@@ -1,7 +1,6 @@
 language: perl
 install:
-    cpanm --installdeps --notest .
-
+    - cpanm --installdeps --notest . || cat /home/travis/.cpanm/build.log
 perl:
     - "5.16"
 notifications:
