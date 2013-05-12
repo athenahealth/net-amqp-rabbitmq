@@ -1,6 +1,11 @@
 language: perl
+
+before_install:
+    - sudo apt-get upgrade libxml2-dev
+
 install:
-    - cpanm --installdeps --notest . || cat /home/travis/.cpanm/build.log
+    - cpanm --installdeps --notest .
+    - cat /home/travis/.cpanm/build.log
 perl:
     - "5.16"
 notifications:
