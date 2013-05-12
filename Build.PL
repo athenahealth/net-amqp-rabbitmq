@@ -7,7 +7,7 @@ my $build = Module::Build->new(
 	dist_abstract   => "Pure perl AMQP client for RabbitMQ",
 
 	requires => {
-		'Net::AMQP' => 0.06,
+		'Net::AMQP' => '0.06',
 		'List::MoreUtils' => 0.25,
 		'File::ShareDir' => 1.00,
 	},
