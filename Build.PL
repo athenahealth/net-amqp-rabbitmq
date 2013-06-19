@@ -10,6 +10,7 @@ my $build = Module::Build->new(
 		'Net::AMQP' => 0.06,
 		'List::MoreUtils' => 0.25,
 		'File::ShareDir' => 1.00,
+		'Try::Tiny' => 0.12,
 	},
 
 	recommends => {
