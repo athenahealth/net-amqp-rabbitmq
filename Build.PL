@@ -10,9 +10,6 @@ my $build = Module::Build->new(
 		'Net::AMQP' => 0.06,
 		'List::MoreUtils' => 0.25,
 		'File::ShareDir' => 1.00,
-		# This is a nasty hack so that XML::LibXML doesn't automatically pull
-		# the latest version that hates all reasonable versions of libxml2.
-		'XML::LibXML' => '< 2.0017',
 	},
 
 	recommends => {
