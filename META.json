@@ -12,7 +12,7 @@
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
       "version" : "2"
    },
-   "name" : "Net-AMQP-RabbitMQ",
+   "name" : "Net-AMQP-RabbitMQ-PP",
    "prereqs" : {
       "build" : {
          "requires" : {
@@ -36,8 +36,8 @@
       }
    },
    "provides" : {
-      "Net::AMQP::RabbitMQ" : {
-         "file" : "lib/Net/AMQP/RabbitMQ.pm",
+      "Net::AMQP::RabbitMQ::PP" : {
+         "file" : "lib/Net/AMQP/RabbitMQ/PP.pm",
          "version" : "0.01"
       }
    },

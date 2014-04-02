@@ -1,4 +1,4 @@
-package Net::AMQP::RabbitMQ;
+package Net::AMQP::RabbitMQ::PP;
 
 use strict;
 use warnings;
@@ -24,7 +24,7 @@ sub new {
 	if( ! %Net::AMQP::Protocol::spec ) {
 		Net::AMQP::Protocol->load_xml_spec(
 			File::ShareDir::dist_file(
-				'Net-AMQP-RabbitMQ',
+				'Net-AMQP-RabbitMQ-PP',
 				'amqp0-9-1.extended.xml'
 			)
 		);
@@ -889,13 +889,13 @@ __END__
 
 =head1 NAME
 
-Net::AMQP::RabbitMQ - Perl-based RabbitMQ AMQP client
+Net::AMQP::RabbitMQ::PP - Perl-based RabbitMQ AMQP client
 
 =head1 SYNOPSIS
 
-    use Net::AMQP::RabbitMQ;
+    use Net::AMQP::RabbitMQ::PP;
 
-    my $connection = Net::AMQP::RabbitMQ->new();
+    my $connection = Net::AMQP::RabbitMQ::PP->new();
     $connection->connect;
     $connection->basic_publish(
         payload => "Foo",

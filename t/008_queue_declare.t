@@ -6,9 +6,9 @@ use warnings;
 
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::AMQP::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ::PP');
 
-ok( my $mq = Net::AMQP::RabbitMQ->new() );
+ok( my $mq = Net::AMQP::RabbitMQ::PP->new() );
 
 lives_ok {
 	$mq->connect(

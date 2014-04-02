@@ -12,10 +12,10 @@ license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-name: Net-AMQP-RabbitMQ
+name: Net-AMQP-RabbitMQ-PP
 provides:
-  Net::AMQP::RabbitMQ:
-    file: lib/Net/AMQP/RabbitMQ.pm
+  Net::AMQP::RabbitMQ::PP:
+    file: lib/Net/AMQP/RabbitMQ/PP.pm
     version: 0.01
 recommends:
   Socket::Linux: 0.01

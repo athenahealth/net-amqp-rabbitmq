@@ -2,7 +2,7 @@ use Module::Build;
 # See perldoc Module::Build for details of how this works
 
 my $build = Module::Build->new(
-	module_name     => 'Net::AMQP::RabbitMQ',
+	module_name     => 'Net::AMQP::RabbitMQ::PP',
 	license         => 'perl',
 	dist_abstract   => "Pure perl AMQP client for RabbitMQ",
 

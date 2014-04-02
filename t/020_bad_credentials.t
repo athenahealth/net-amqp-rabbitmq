@@ -8,9 +8,9 @@ use warnings;
 
 my $host = $ENV{'MQHOST'} || "dev.rabbitmq.com";
 
-use_ok('Net::AMQP::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ::PP');
 
-ok( my $mq = Net::AMQP::RabbitMQ->new()) ;
+ok( my $mq = Net::AMQP::RabbitMQ::PP->new()) ;
 
 local $SIG{ALRM} = sub { die "failed to timeout\n" };
 

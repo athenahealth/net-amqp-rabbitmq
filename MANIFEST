@@ -4,7 +4,7 @@ LICENSE
 MANIFEST
 README.md
 Todo
-lib/Net/AMQP/RabbitMQ.pm
+lib/Net/AMQP/RabbitMQ/PP.pm
 share/amqp0-9-1.extended.xml
 t/001_declare_exchange.t
 t/001_load.t

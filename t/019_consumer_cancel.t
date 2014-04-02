@@ -6,12 +6,12 @@ use warnings;
 
 my $host = $ENV{MQHOST} || "dev.rabbitmq.com";
 
-use_ok('Net::AMQP::RabbitMQ');
+use_ok('Net::AMQP::RabbitMQ::PP');
 
 SKIP: {
 	skip "Don't have boolean values", 9, unless Net::AMQP::Common->can("true");
 
-	ok( my $mq = Net::AMQP::RabbitMQ->new() );
+	ok( my $mq = Net::AMQP::RabbitMQ::PP->new() );
 
 	lives_ok {
 		$mq->connect(
@@ -55,7 +55,7 @@ SKIP: {
 	} 'basic cancel callback';
 
 	lives_ok {
-		my $mq2 = Net::AMQP::RabbitMQ->new();
+		my $mq2 = Net::AMQP::RabbitMQ::PP->new();
 		$mq2->connect( host => $host, username => 'guest', password => 'guest' );
 
 		$mq2->channel_open(
